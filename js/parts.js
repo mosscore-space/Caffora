@@ -1,6 +1,9 @@
 // Reusable view pieces: thumbnails, freshness slide, chips, empty states.
-import { h, icon, beanSVG, blobURL, fmtDate, nf0, fmtG, round1 } from './util.js';
-import { auth, lock } from './auth.js';
+import { h, icon, beanSVG, blobURL, fmtDate, nf0, fmtG, round1, norm } from './util.js';
+import { auth, lock, canEdit } from './auth.js';
+import { nav } from './nav.js';
+import { syncNow, syncConfig } from './sync.js';
+import { toast } from './ui.js';
 import { freshness, remaining, consumedBy, ROAST_LABEL } from './store.js';
 
 /* ---- flavor category colors ---- */
@@ -90,9 +93,54 @@ export function emptyState({ iconName = 'empty', title, text, action }) {
   return h('div.empty', h('div.empty-ico', icon(iconName, 34)), h('h3', title), text ? h('p', text) : null, (auth.mode === 'peek' ? null : action) || null);
 }
 
-export function pageHead(title, sub, actions) {
+/* ---------- page header: title, search and app menu ---------- */
+/** Hide list items that do not match the query. Items carry a normalised `data-search` string. */
+export function applySearch(root, query) {
+  const terms = norm(query).split(' ').filter(Boolean);
+  const items = [...root.querySelectorAll('[data-search]')];
+  let shown = 0;
+  for (const el of items) { const hit = terms.every(t => el.dataset.search.includes(t)); el.hidden = !hit; if (hit) shown++; }
+  for (const g of root.querySelectorAll('.brew-group')) g.hidden = !g.querySelector('[data-search]:not([hidden])');
+  let none = root.querySelector('.no-match');
+  if (!none) { none = h('p.no-match', 'Nothing matches that.'); (root.querySelector('.brew-groups, .bean-list') || root).after(none); }
+  none.hidden = !(terms.length && items.length && !shown);
+}
+export const searchText = (...parts) => norm(parts.filter(Boolean).join(' '));
+
+function openAppMenu(anchor) {
+  const close = () => { scrim.remove(); menu.remove(); document.removeEventListener('keydown', onKey); anchor.focus?.(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const item = (ic, label, fn) => h('button.menu-item', { type: 'button', role: 'menuitem', onclick: () => { close(); fn(); } }, icon(ic, 20), h('span', label));
+  const items = [item('settings', 'Settings', () => nav.go('settings'))];
+  if (canEdit() && syncConfig()) items.push(item('reset', 'Sync now', () => { toast('Syncing…', { ms: 1500 }); syncNow(); }));
+  if (auth.mode === 'edit' && auth.hasPasscode) items.push(item('lock', 'Lock now', () => lock()));
+  if (auth.mode === 'peek') items.push(item('lock', 'Sign in to edit', () => lock()));
+  const scrim = h('div.menu-scrim', { onclick: close });
+  const menu = h('div.menu', { role: 'menu' }, items);
+  document.body.append(scrim, menu);
+  document.addEventListener('keydown', onKey);
+  menu.querySelector('button')?.focus();
+}
+
+export function pageHead(title, sub, actions, { search = false } = {}) {
+  const head = h('header.page-head');
+  const query = h('input.head-search-in', { type: 'search', placeholder: `Search ${title.toLowerCase()}`, 'aria-label': `Search ${title}`, autocomplete: 'off', autocapitalize: 'off', spellcheck: false, enterkeyhint: 'search' });
+  const searchBtn = search ? h('button.icon-btn.search-btn', { type: 'button', 'aria-label': 'Search' }, icon('search', 22)) : null;
+  const closeBtn = h('button.icon-btn.search-close', { type: 'button', 'aria-label': 'Close search' }, icon('close', 22));
+  const root = () => document.getElementById('view');
+  const open = () => { head.classList.add('searching'); query.focus(); };
+  const shut = () => { head.classList.remove('searching'); query.value = ''; applySearch(root(), ''); };
+  searchBtn?.addEventListener('click', open);
+  closeBtn.addEventListener('click', shut);
+  query.addEventListener('input', () => applySearch(root(), query.value));
+  query.addEventListener('keydown', (e) => { if (e.key === 'Escape') shut(); });
   const lockBtn = auth.hasPasscode && auth.mode === 'edit'
-    ? h('button.btn.ghost.sm.lock-btn', { type: 'button', 'aria-label': 'Lock Caffora', title: 'Lock', onclick: () => lock() }, icon('lock', 18)) : null;
-  return h('header.page-head', h('div', h('h1', title), sub ? h('p.page-sub', sub) : null), h('div.page-actions', actions || null, lockBtn));
+    ? h('button.icon-btn.lock-btn', { type: 'button', 'aria-label': 'Lock Caffora', title: 'Lock', onclick: () => lock() }, icon('lock', 20)) : null;
+  const menuBtn = h('button.icon-btn.menu-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'menu', onclick: (e) => openAppMenu(e.currentTarget) }, icon('kebab', 22));
+  head.append(
+    h('div.head-title', h('h1', title), sub ? h('p.page-sub', sub) : null),
+    h('div.head-search', query, closeBtn),
+    h('div.page-actions', actions || null, searchBtn, lockBtn, menuBtn));
+  return head;
 }
 export { round1 };

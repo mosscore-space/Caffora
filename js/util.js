@@ -4,7 +4,7 @@ export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 /** Tiny hyperscript: h('div.card#id', {onclick, class:'x', style:{}}, child, 'text', [children]) */
-const SKIP_PROP = new Set(['list', 'form', 'style', 'class', 'dataset', 'html']);
+const SKIP_PROP = new Set(['list', 'form', 'style', 'class', 'dataset']);
 function applyAttrs(node, attrs, svg) {
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v == null || v === false) continue;
@@ -12,7 +12,6 @@ function applyAttrs(node, attrs, svg) {
     else if (k === 'class') String(v).split(' ').forEach(c => c && node.classList.add(c));
     else if (k === 'style' && typeof v === 'object') { for (const [sk, sv] of Object.entries(v)) { if (sk.startsWith('--')) node.style.setProperty(sk, sv); else node.style[sk] = sv; } }
     else if (k === 'dataset') Object.assign(node.dataset, v);
-    else if (k === 'html') node.innerHTML = v;
     else if (!svg && k in node && !SKIP_PROP.has(k) && k !== 'for') { try { node[k] = v; } catch { node.setAttribute(k, v); } }
     else node.setAttribute(k, v === true ? '' : v);
   }
@@ -169,22 +168,44 @@ const P = {
   reset: '<path d="M4 4v6h6"/><path d="M5.5 15a7.5 7.5 0 1 0 1.2-7.3L4 10"/>',
   lock: '<rect x="5" y="11" width="14" height="9.5" rx="2.5"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
+  kebab: '<circle cx="12" cy="5" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="19" r="1.3"/>',
   more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
   drop: '<path d="M12 3.5s6 6.2 6 10.5a6 6 0 0 1-12 0c0-4.3 6-10.5 6-10.5z"/>',
   empty: '<path d="M5 8h14l-1.5 11h-11L5 8z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
 };
+const SVGNS = 'http://www.w3.org/2000/svg';
+/** Build SVG nodes from our own icon strings without innerHTML (the page forbids it, see the CSP in index.html). */
+function svgNodes(markup) {
+  const out = [];
+  for (const m of markup.matchAll(/<(path|circle|rect|ellipse|line)\s+([^>]*?)\/>/g)) {
+    const el = document.createElementNS(SVGNS, m[1]);
+    for (const a of m[2].matchAll(/([\w-]+)="([^"]*)"/g)) el.setAttribute(a[1], a[2]);
+    out.push(el);
+  }
+  return out;
+}
+const svgRoot = (viewBox, size, attrs = {}) => {
+  const svg = document.createElementNS(SVGNS, 'svg');
+  svg.setAttribute('viewBox', viewBox); svg.setAttribute('width', size); svg.setAttribute('height', size); svg.setAttribute('aria-hidden', 'true');
+  for (const [k, v] of Object.entries(attrs)) svg.setAttribute(k, v);
+  return svg;
+};
 export function icon(name, size = 22, cls = '') {
   const span = document.createElement('span');
   span.className = 'ico ' + cls;
-  span.innerHTML = `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
+  const svg = svgRoot('0 0 24 24', size, { fill: 'none', stroke: 'currentColor', 'stroke-width': '1.8', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  svg.append(...svgNodes(P[name] || ''));
+  span.append(svg);
   return span;
 }
-export const iconHTML = (name, size = 22) => icon(name, size).outerHTML;
 
 /* bean glyph used by freshness slide and empty thumbnails */
 export function beanSVG(size = 24, cls = '') {
   const wrap = document.createElement('span');
   wrap.className = 'beanglyph ' + cls;
-  wrap.innerHTML = `<svg viewBox="0 0 32 32" width="${size}" height="${size}" aria-hidden="true"><g transform="rotate(-32 16 16)"><ellipse class="b-body" cx="16" cy="16" rx="9.6" ry="13.2"/><path class="b-crease" d="M16 3.4c-3.2 3.6 3.2 8.6 0 12.6s3.2 8.6 0 12.6" fill="none" stroke-width="1.9" stroke-linecap="round"/></g></svg>`;
+  const svg = svgRoot('0 0 32 32', size);
+  const g = document.createElementNS(SVGNS, 'g'); g.setAttribute('transform', 'rotate(-32 16 16)');
+  g.append(...svgNodes('<ellipse class="b-body" cx="16" cy="16" rx="9.6" ry="13.2"/><path class="b-crease" d="M16 3.4c-3.2 3.6 3.2 8.6 0 12.6s3.2 8.6 0 12.6" fill="none" stroke-width="1.9" stroke-linecap="round"/>'));
+  svg.append(g); wrap.append(svg);
   return wrap;
 }

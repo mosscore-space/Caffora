@@ -28,36 +28,40 @@ After the first load it works fully offline, including the map.
 2. Repo > Settings > Pages > Deploy from a branch > `main` / `/ (root)`. Your app will be at `https://<you>.github.io/<repo>/`.
 3. Open that address on your phone and install it (see above).
 
-## Save your data to another repo (sync)
+## Set it up once, then open it from any browser
 
-Your beans, brews, grinders and bag photos can be copied to a second GitHub repo, and loaded on any device.
+1. **Host the app** on GitHub Pages (above). Turn on "Enforce HTTPS" in the Pages settings.
+2. **Make a data repo.** Create a new **private** repo, for example `caffora-data`, with "Add a README" ticked.
+3. **Make a token.** GitHub > Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token.
+   Repository access: only the data repo. Permissions: **Contents: Read and write**. Set an expiry. Classic tokens are refused.
+4. **Connect.** In Caffora, open Settings > Backup & sync, enter `your-name/caffora-data`, paste the token, press Connect and sync.
+5. **Set a passcode.** Settings > Passcode (12+ characters, ideally four random words).
+6. **Export the sign-in file.** Settings > Open it from any browser > Download `caffora.config.json`. Upload that file to the root of
+   your Pages repo (Add file > Upload files, next to `index.html`) and commit.
 
-1. Create a new **private** repo, for example `caffora-data`, with "Add a README" ticked. Keep it separate from the Pages repo.
-2. GitHub > Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token.
-   Repository access: only that data repo. Permissions: **Contents: Read and write**. Copy the token.
-3. In Caffora: Settings > Backup & sync. Enter `your-name/caffora-data`, paste the token, press **Connect and sync**.
-4. On another device, open the app, do the same with the same repo and token. Your data is merged in.
+From then on, opening your site on any browser or device goes straight to the lock screen. Enter the passcode and your data loads
+from GitHub. The file only holds the repo name and your token encrypted with the passcode. Read `SECURITY.md` for what that does and
+does not protect. If you change the passcode or the token, Settings will say the file is out of date; download and upload it again.
 
-How it behaves:
+How sync behaves:
 
 - It syncs a few seconds after each change, when you open the app, and when you come back online. "Sync now" does it on demand.
-- Each sync is one commit. The repo holds `caffora.json` (all records) and `photos/<hash>.jpg`.
-- If two devices change the same bean or brew, the most recent edit wins. Deleting something on one device deletes it everywhere.
-  Edits made offline are pushed when you reconnect.
-- The token lives in this browser only. Because it is limited to one repo, the worst a stolen token can do is touch that repo.
+  Each sync is one commit; the repo holds `caffora.json` and `photos/<hash>.jpg`.
+- Syncing merges the two sides. If two devices change the same bean or brew, the most recent edit wins. Deleting something on one
+  device deletes it everywhere. Edits made offline are pushed when you reconnect.
 - "Disconnect" only makes the device forget the token. Nothing is deleted locally or on GitHub.
-- To restore after clearing a browser or getting a new phone: install the app, connect, and everything comes back.
 
 ## Passcode and Quick peek
 
 Settings > Passcode locks the app. After that, each launch shows a lock screen with two choices:
 
-- **Sign in to edit**: enter your passcode to add, change and delete things, and to use sync.
+- **Sign in to edit**: enter your passcode to add, change and delete things, and to use sync. On a browser that has never seen your
+  data, this is also what loads it from GitHub.
 - **Quick peek**: a view-only mode for showing someone around. There are no add, edit or delete buttons, and Settings only offers themes.
   A bar at the top says "Viewing only" and signs you in when tapped.
 
 "Lock when I leave the app" (Settings > Passcode) sends the app back to the lock screen after it has been out of sight for the time you choose.
-The lock icon in each page header, or "Lock now" in Settings, locks it at once.
+On a phone, the menu (three dots, top right) has Lock now, Sync now and Settings.
 
 What this is, and isn't: it keeps casual snoopers from editing, and it encrypts your GitHub token with a key made from the passcode.
 It does not encrypt your beans and brews on the device, so use your phone's own screen lock for that. A forgotten passcode cannot be
@@ -69,11 +73,18 @@ Anyone who opens the hosted address on their own device only sees their own, emp
 The service worker serves cached files and refreshes them in the background, so a new version appears on the
 second launch. To force a clean update, change `VERSION` at the top of `sw.js`.
 
+## Phone layout and themes
+
+Below 900 px wide the app switches to a phone layout: a centred title bar with search and a menu, accent-striped cards,
+and a five-tab bottom bar (Settings moves into the menu). Themes (Settings): Espresso (default on phones), Matcha, Mocha
+(default on larger screens), Macchiato, Frappé, Latte, and Match device.
+
 ## What's in the folder
 
     index.html, manifest.webmanifest, sw.js
     css/app.css                 themes (Catppuccin Latte, Frappé, Macchiato, Mocha) and all styles
-    js/                         app code (no build step)
+    js/                         app code (no build step; validate.js cleans all data, auth.js and sync.js do sign-in and GitHub)
+    SECURITY.md                 what is protected, how, and what no web page can protect
     data/lists.json             your varietals, processings, flavor notes, brew methods and countries
     data/world.topo.json        countries and regions for the map (Natural Earth, public domain)
     data/region-aliases.json    famous coffee regions mapped to map regions (Yirgacheffe, Kona, Antigua...)

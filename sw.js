@@ -1,9 +1,9 @@
 /* Caffora service worker: precache the app shell, then serve cache-first and refresh in the background. */
-const VERSION = 'caffora-v3';
+const VERSION = 'caffora-v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/util.js', 'js/db.js', 'js/store.js', 'js/ui.js', 'js/parts.js', 'js/geo.js', 'js/nav.js',
-  'js/beans.js', 'js/brews.js', 'js/grinders.js', 'js/stats.js', 'js/map.js', 'js/settings.js', 'js/sync.js', 'js/auth.js', 'js/lock.js',
+  'js/beans.js', 'js/brews.js', 'js/grinders.js', 'js/stats.js', 'js/map.js', 'js/settings.js', 'js/sync.js', 'js/auth.js', 'js/lock.js', 'js/validate.js', 'js/boot.js',
   'vendor/d3.min.js', 'vendor/topojson-client.min.js',
   'fonts/fraunces-latin-wght-normal.woff2', 'fonts/figtree-latin-wght-normal.woff2',
   'data/lists.json', 'data/region-aliases.json', 'data/world.topo.json',
@@ -34,6 +34,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
+  if (url.pathname.endsWith('/caffora.config.json')) return;      // the sign-in file must always come fresh from the network
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     const hit = await cache.match(req, { ignoreSearch: true });

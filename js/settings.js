@@ -3,19 +3,27 @@ import { h, icon, clear } from './util.js';
 import { pageHead } from './parts.js';
 import { db } from './db.js';
 import { field, confirmDialog, toast, openSheet, segmented } from './ui.js';
-import { auth, canEdit, lock, setPasscode, removePasscode, setAutoLock, AUTO_LOCK_OPTIONS } from './auth.js';
+import { auth, canEdit, lock, setPasscode, removePasscode, setAutoLock, AUTO_LOCK_OPTIONS, buildConfigFile, siteConfigState, CONFIG_FILENAME } from './auth.js';
 import { sync, onSyncState, syncConfig, connect, disconnect, syncNow, setAuto, isPublicRepo } from './sync.js';
 
 export const THEMES = [
+  { id: 'espresso', name: 'Espresso', note: 'Warm and dark, the phone default', sw: ['#1a110d', '#2a1a13', '#c9a074', '#f3e7d6'] },
+  { id: 'matcha', name: 'Matcha', note: 'Light and leafy', sw: ['#eef2e4', '#fbfcf6', '#5f8f3e', '#2f3a24'] },
   { id: 'auto', name: 'Match device', note: 'Latte in light mode, Mocha in dark mode', sw: ['#eff1f5', '#1e1e2e', '#fe640b'] },
   { id: 'latte', name: 'Latte', note: 'Light', sw: ['#eff1f5', '#ccd0da', '#fe640b', '#4c4f69'] },
   { id: 'frappe', name: 'Frappé', note: 'Soft dark', sw: ['#303446', '#414559', '#ef9f76', '#c6d0f5'] },
   { id: 'macchiato', name: 'Macchiato', note: 'Medium dark', sw: ['#24273a', '#363a4f', '#f5a97f', '#cad3f5'] },
   { id: 'mocha', name: 'Mocha', note: 'Darkest', sw: ['#1e1e2e', '#313244', '#fab387', '#cdd6f4'] },
 ];
-const META = { latte: '#eff1f5', frappe: '#303446', macchiato: '#24273a', mocha: '#1e1e2e' };
+const META = { latte: '#eff1f5', frappe: '#303446', macchiato: '#24273a', mocha: '#1e1e2e', espresso: '#1a110d', matcha: '#eef2e4' };
 
-export function getTheme() { try { return localStorage.getItem('caffora-theme') || 'mocha'; } catch { return 'mocha'; } }
+const phoneSized = () => { try { return matchMedia('(max-width: 899.98px)').matches; } catch { return false; } };
+export const defaultTheme = () => (phoneSized() ? 'espresso' : 'mocha');
+export function getTheme() {
+  let t = null;
+  try { t = localStorage.getItem('caffora-theme'); } catch { /* private mode */ }
+  return THEMES.some(x => x.id === t) ? t : defaultTheme();
+}
 export function applyTheme(id) {
   const resolved = id === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'latte' : 'mocha') : id;
   document.documentElement.dataset.theme = resolved;
@@ -119,16 +127,55 @@ function passSheet({ title, intro, fields, confirmLabel, danger, onSubmit }) {
   setTimeout(() => inputs[0]?.focus(), 250);
 }
 
+function siteSection() {
+  const body = h('div.sync-body');
+  const box = h('section.settings-sec', h('h2', 'Open it from any browser'), body);
+  let unsub = () => {};
+  const paint = async () => {
+    if (box.dataset.painted && !box.isConnected) { unsub(); return; }
+    box.dataset.painted = '1';
+    const st = await siteConfigState();
+    const say = {
+      unavailable: 'Connect a data repo above first. Then you can export the sign-in file for your site.',
+      missing: 'Your site does not have a sign-in file yet. Follow the steps below once.',
+      stale: 'The sign-in file on your site is out of date, because you changed the passcode or token. Upload a fresh one.',
+      current: 'Your site has the current sign-in file. Open it from any browser and enter your passcode to load your data.',
+    }[st];
+    const msg = h('p.muted' + (st === 'current' ? '.ok' : ''), say);
+    if (st === 'unavailable') { body.replaceChildren(msg); return; }
+    const err = h('p.sync-err', { role: 'alert', hidden: true });
+    const dl = h('button.btn.primary', { type: 'button' }, 'Download ' + CONFIG_FILENAME);
+    dl.onclick = async () => {
+      err.hidden = true;
+      const text = await buildConfigFile();
+      if (!text) { err.textContent = 'Nothing to export yet.'; err.hidden = false; return; }
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const a = h('a', { href: url, download: CONFIG_FILENAME });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+    body.replaceChildren(
+      msg, dl, err,
+      h('ol.sync-steps',
+        h('li', 'Download the file above.'),
+        h('li', 'Open your site’s repository on GitHub, choose Add file, then Upload files. Drop the file in the main folder next to index.html and commit.'),
+        h('li', 'Wait a minute for GitHub Pages to update. Opening the site in any browser now lands on the lock screen. Enter your passcode and your data loads.')),
+      h('p.muted.small', 'The file is public, and its only protection is your passcode. That is why the passcode needs 12+ characters. Never reuse it anywhere else. If you change the passcode or the token, upload a fresh file.'));
+  };
+  unsub = onSyncState((s, ev) => { if (ev !== 'toast' && (s.status === 'ok' || s.status === 'off')) paint(); });
+  paint();
+  return box;
+}
+
 function securitySection(root) {
   const again = () => renderSettings(root);
   if (!auth.hasPasscode) {
-    const p1 = h('input', { type: 'password', autocomplete: 'off', placeholder: 'New passcode', 'aria-label': 'New passcode' });
+    const p1 = h('input', { type: 'password', autocomplete: 'off', placeholder: 'New passcode (12+ characters)', 'aria-label': 'New passcode' });
     const p2 = h('input', { type: 'password', autocomplete: 'off', placeholder: 'Repeat passcode', 'aria-label': 'Repeat passcode' });
     const err = h('p.sync-err', { role: 'alert', hidden: true });
     const go = h('button.btn.primary', { type: 'button' }, 'Set passcode');
     go.onclick = async () => {
       err.hidden = true;
-      if (p1.value.length < 4) { err.textContent = 'Use at least 4 characters.'; err.hidden = false; return; }
       if (p1.value !== p2.value) { err.textContent = 'The two passcodes do not match.'; err.hidden = false; return; }
       go.disabled = true;
       try { await setPasscode(p1.value); toast('Passcode set. Caffora will ask for it next time.'); } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; }
@@ -136,7 +183,7 @@ function securitySection(root) {
     return h('section.settings-sec',
       h('h2', 'Passcode'),
       h('div.sync-body',
-        h('p.muted', 'Lock Caffora so that only you can edit. Anyone else can take a quick peek, which is view only. A longer passcode is safer, and it also keeps your GitHub token encrypted.'),
+        h('p.muted', 'Lock Caffora so that only you can edit. Anyone else can take a quick peek, which is view only. Use at least 12 characters, for example four random words. It also keeps your GitHub token encrypted.'),
         h('div.sync-form', p1, p2), err, go));
   }
   return h('section.settings-sec',
@@ -151,7 +198,6 @@ function securitySection(root) {
           title: 'Change passcode', confirmLabel: 'Change',
           fields: [{ label: 'Current passcode' }, { label: 'New passcode' }, { label: 'Repeat new passcode' }],
           onSubmit: async ([cur, a, b]) => {
-            if (a.length < 4) throw new Error('Use at least 4 characters.');
             if (a !== b) throw new Error('The two new passcodes do not match.');
             await setPasscode(a, cur); toast('Passcode changed');
           } }) }, 'Change'),
@@ -166,7 +212,7 @@ export function renderSettings(root) {
   const cur = getTheme();
   root.append(
     pageHead('Settings', 'Make Caffora yours'),
-    ...(canEdit() ? [syncSection(), securitySection(root)] : [h('p.muted.peek-note', 'You are viewing only. Sign in to change settings, beans, brews and grinders.')]),
+    ...(canEdit() ? [syncSection(), securitySection(root), ...(auth.hasPasscode ? [siteSection()] : [])] : [h('p.muted.peek-note', 'You are viewing only. Sign in to change settings, beans, brews and grinders.')]),
     h('section.settings-sec',
       h('h2', 'Theme'),
       h('div.themes', { role: 'radiogroup', 'aria-label': 'Theme' }, THEMES.map(t =>

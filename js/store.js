@@ -1,6 +1,7 @@
 // App state, derived values and the reference lists (varieties, processes, flavors, methods, countries).
 import { db } from './db.js';
 import { canEdit } from './auth.js';
+import { normalizeBean, normalizeBrew, normalizeGrinder, cleanText } from './validate.js';
 import { today, daysBetween, parseYMD, addDays, uid, norm } from './util.js';
 
 export const S = {
@@ -86,7 +87,10 @@ export function flavorLibrary() {
 /** Persist the user's additions (lib is a full library object from a form). */
 export async function saveFlavorLibrary(lib) { need();
   const custom = {};
-  for (const [c, notes] of Object.entries(lib)) {
+  for (const [c0, notes0] of Object.entries(lib)) {
+    const c = cleanText(c0, 40);
+    if (!c || ['__proto__', 'constructor', 'prototype'].includes(c)) continue;
+    const notes = (notes0 || []).map(n => cleanText(n, 40)).filter(Boolean);
     const base = new Set((S.lists.flavors[c] || []).map(n => n.toLowerCase()));
     const add = notes.filter(n => !base.has(n.toLowerCase()));
     if (add.length || !S.lists.flavors[c]) custom[c] = add;
@@ -94,12 +98,12 @@ export async function saveFlavorLibrary(lib) { need();
   S.custom.flavors = custom;
   await db.kvSet('customFlavors', custom); touched('lists');
 }
-export async function addCustomVariety(name) { need();
+export async function addCustomVariety(name) { need(); name = cleanText(name, 80);
   if (!name || varieties().some(v => v.toLowerCase() === name.toLowerCase())) return;
   S.custom.varieties = [...S.custom.varieties, name];
   await db.kvSet('customVarieties', S.custom.varieties); touched('lists');
 }
-export async function addCustomProcess(name) { need();
+export async function addCustomProcess(name) { need(); name = cleanText(name, 80);
   if (!name || processes().some(v => v.toLowerCase() === name.toLowerCase())) return;
   S.custom.processes = [...S.custom.processes, name];
   await db.kvSet('customProcesses', S.custom.processes); touched('lists');
@@ -107,9 +111,14 @@ export async function addCustomProcess(name) { need();
 
 /* ---------- CRUD ---------- */
 const need = () => { if (!canEdit()) throw new Error('Sign in to edit.'); };
-export async function saveBean(bean) { need();
-  if (!bean.id) { bean.id = uid(); bean.created = Date.now(); }
-  bean.updated = Date.now();
+export async function saveBean(input) {
+  need();
+  const raw = { ...input };
+  if (!raw.id) { raw.id = uid(); raw.created = Date.now(); }
+  raw.updated = Date.now();
+  const bean = normalizeBean(raw);
+  if (!bean) throw new Error('These beans are missing something, or have a value that is not valid.');
+  input.id = bean.id;
   const i = S.beans.findIndex(b => b.id === bean.id);
   if (i >= 0) S.beans[i] = bean; else S.beans.unshift(bean);
   await db.put('beans', bean); emit('beans'); return bean;
@@ -121,18 +130,28 @@ export async function deleteBean(id) { need();
   await tombstone('beans', [id]); await tombstone('brews', brewIds);
   await db.del('beans', id); await db.delMany('brews', brewIds); emit('beans');
 }
-export async function saveBrew(brew) { need();
-  if (!brew.id) { brew.id = uid(); brew.created = Date.now(); }
-  brew.updated = Date.now();
+export async function saveBrew(input) {
+  need();
+  const raw = { ...input };
+  if (!raw.id) { raw.id = uid(); raw.created = Date.now(); }
+  raw.updated = Date.now();
+  const brew = normalizeBrew(raw);
+  if (!brew) throw new Error('This brew is missing something, or has a value that is not valid.');
+  input.id = brew.id;
   const i = S.brews.findIndex(b => b.id === brew.id);
   if (i >= 0) S.brews[i] = brew; else S.brews.unshift(brew);
   S.brews.sort((a, b) => (b.date + String(b.created).padStart(15, '0')).localeCompare(a.date + String(a.created).padStart(15, '0')));
   await db.put('brews', brew); emit('brews'); return brew;
 }
 export async function deleteBrew(id) { need(); S.brews = S.brews.filter(b => b.id !== id); await tombstone('brews', [id]); await db.del('brews', id); emit('brews'); }
-export async function saveGrinder(g) { need();
-  if (!g.id) { g.id = uid(); g.created = Date.now(); }
-  g.updated = Date.now();
+export async function saveGrinder(input) {
+  need();
+  const raw = { ...input };
+  if (!raw.id) { raw.id = uid(); raw.created = Date.now(); }
+  raw.updated = Date.now();
+  const g = normalizeGrinder(raw);
+  if (!g) throw new Error('This grinder is missing something, or has a value that is not valid.');
+  input.id = g.id;
   const i = S.grinders.findIndex(x => x.id === g.id);
   if (i >= 0) S.grinders[i] = g; else S.grinders.push(g);
   await db.put('grinders', g); emit('grinders'); return g;

@@ -2,7 +2,7 @@
 import { h, icon, $ } from './util.js';
 import { load, onChange, S } from './store.js';
 import { persistStorage } from './db.js';
-import { initSync, stopSync, reseal, onSyncState } from './sync.js';
+import { initSync, stopSync, reseal, onSyncState, syncNow, sync } from './sync.js';
 import { auth, initAuth, onAuth, lock } from './auth.js';
 import { showLock, hideLock } from './lock.js';
 import { nav } from './nav.js';
@@ -72,7 +72,37 @@ async function applyMode() {
   wasEditable = editable;
   if (stayedEditable) await reseal();                  // re-save the GitHub token under the new protection
   if (stayedEditable) rerender(); else route();
-  if (editable && !stayedEditable) initSync();
+  if (editable && !stayedEditable) {
+    if (auth.fresh) restore(); else initSync();
+  }
+}
+
+/** First sign-in on a browser that has no data yet: pull everything from GitHub before showing the app. */
+async function restore() {
+  const msg = h('p.restore-msg', 'Loading your coffee from GitHub…');
+  const retry = h('button.btn.primary', { type: 'button', hidden: true }, 'Try again');
+  const skip = h('button.btn', { type: 'button', hidden: true }, 'Continue without it');
+  const box = h('div#restore.restore', { role: 'status' }, h('div.restore-card', h('div.spinner'), msg, h('div.restore-actions', retry, skip)));
+  document.body.append(box);
+  view().replaceChildren();
+  const attempt = async () => {
+    retry.hidden = skip.hidden = true; msg.textContent = 'Loading your coffee from GitHub…'; box.classList.remove('bad');
+    await initSync(); await syncNow();
+    if (sync.status === 'error') { msg.textContent = sync.message || 'Could not reach GitHub.'; box.classList.add('bad'); retry.hidden = skip.hidden = false; return false; }
+    return true;
+  };
+  retry.onclick = async () => { if (await attempt()) done(); };
+  skip.onclick = () => done();
+  const done = () => { box.remove(); auth.fresh = false; route(); };
+  if (await attempt()) done();
+}
+
+/** With Trusted Types enforced, registering a service worker needs a vetted URL. This policy only ever vouches for sw.js. */
+function swURL() {
+  const tt = window.trustedTypes;
+  if (!tt?.createPolicy) return 'sw.js';
+  const policy = tt.createPolicy('caffora-sw', { createScriptURL: (u) => { if (u !== 'sw.js') throw new TypeError('Blocked script URL'); return u; } });
+  return policy.createScriptURL('sw.js');
 }
 
 async function boot() {
@@ -82,12 +112,16 @@ async function boot() {
   window.addEventListener('hashchange', route);
   onChange(() => rerender());
   onAuth(() => applyMode());
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) rerender(); });
+  document.addEventListener('visibilitychange', () => {
+    document.body.classList.toggle('veil', document.hidden && auth.hasPasscode);       // privacy screen for the app switcher
+    if (!document.hidden) rerender();
+  });
   onSyncState((s, ev) => { if (ev === 'toast') toast('GitHub sync: ' + s.message); });
   await initAuth();                                    // shows the lock screen when a passcode is set
   persistStorage();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker not registered:', err));
+    navigator.serviceWorker.register(swURL()).catch(err => console.warn('Service worker not registered:', err));
   }
 }
-boot();
+// never start inside someone else's frame (boot.js also stops the page; this is the second lock)
+if (window.top === window.self) boot();

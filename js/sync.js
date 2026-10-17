@@ -8,7 +8,8 @@
 // record differs on two devices the newer edit wins, and deletions are remembered so they don't come back.
 import { db } from './db.js';
 import { S, onData, applyMerged } from './store.js';
-import { vaultKey, seal, unseal } from './auth.js';
+import { vaultKey, seal, unseal, bumpRev } from './auth.js';
+import { sanitizeSnapshot, isSha } from './validate.js';
 
 const API = 'https://api.github.com';
 const DATA_FILE = 'caffora.json';
@@ -133,7 +134,7 @@ async function gh(path, { method = 'GET', body } = {}) {
   let res;
   try {
     res = await fetch(API + path, {
-      method, signal: ctl.signal, cache: 'no-store',
+      method, signal: ctl.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', mode: 'cors',
       headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -167,10 +168,12 @@ async function readRemote() {
   let data = null, text = null;
   if (files.has(DATA_FILE)) {
     const blob = await gh(`${repoPath()}/git/blobs/${files.get(DATA_FILE)}`);
+    if (typeof blob.content !== 'string' || blob.content.length > 40 * 1024 * 1024) throw new GhError(0, `${DATA_FILE} in the repo is too large, so Caffora left it alone.`);
     text = new TextDecoder().decode(unb64(blob.content));
     try { data = JSON.parse(text); } catch { throw new GhError(0, `${DATA_FILE} in the repo is not valid JSON, so Caffora left it alone.`); }
     if (data.app !== 'caffora') throw new GhError(0, `${DATA_FILE} in the repo was not written by Caffora, so it was left alone.`);
     if (data.schema > SCHEMA) throw new GhError(0, 'The repo data is from a newer version of Caffora. Update the app first.');
+    data = sanitizeSnapshot(data);                        // the repo is not trusted: keep only known, valid fields
   }
   return { head, tree: commit.tree.sha, files, data, text };
 }
@@ -215,10 +218,14 @@ async function withPhotos(merged, remote) {
     return bean;
   });
   await pool(missing, 4, async (bean) => {
+    if (!isSha(bean.photo)) return;
     const sha = remote.files.get(`photos/${bean.photo}.jpg`);
     if (!sha) return;                                     // photo not in the repo (yet): keep the bean without it
     const blob = await gh(`${repoPath()}/git/blobs/${sha}`);
-    bean.image = new Blob([unb64(blob.content)], { type: 'image/jpeg' });
+    if (typeof blob.content !== 'string' || blob.content.length > 6 * 1024 * 1024) return;
+    const bytes = unb64(blob.content);
+    if (bytes.length < 4 || bytes[0] !== 0xFF || bytes[1] !== 0xD8 || bytes[2] !== 0xFF) return;     // not a JPEG: ignore it
+    bean.image = new Blob([bytes], { type: 'image/jpeg' });
   });
   for (const b of beans) delete b.photo;                    // the hash is only for the repo copy
   return beans;
@@ -266,6 +273,10 @@ async function pushOnce(remote, text, merged, photos) {
 
 async function runSync() {
   if (!cfg) return;
+  if (!branchName()) {                                    // signed in from a config file: find the repo's default branch first
+    const info = await gh(repoPath());
+    cfg.defaultBranch = info.default_branch || 'main'; cfg.public = !info.private;
+  }
   if (!navigator.onLine) { publish({ status: 'error', message: 'Offline. Changes will sync when you are back online.' }); return; }
   publish({ status: 'syncing', message: 'Syncing…' });
   let summary = '';
@@ -341,9 +352,14 @@ export function parseRepo(input) {
 export async function connect({ repo, token, branch }) {
   const clean = parseRepo(repo);
   if (!clean) throw new GhError(0, 'Enter the repo as owner/name, for example shaiman/caffora-data.');
-  if (!token || !token.trim()) throw new GhError(0, 'Paste a GitHub token.');
+  const tok = String(token || '').trim();
+  if (!tok) throw new GhError(0, 'Paste a GitHub token.');
+  if (/^(ghp|gho|ghu)_/.test(tok)) throw new GhError(0, 'That is a classic token, which can reach all of your repositories. Create a fine-grained token limited to the data repo instead.');
+  if (!/^[A-Za-z0-9_]{20,255}$/.test(tok)) throw new GhError(0, 'That does not look like a GitHub token.');
+  const br = String(branch || '').trim();
+  if (br && (!/^[\w./-]{1,100}$/.test(br) || br.includes('..'))) throw new GhError(0, 'That branch name is not valid.');
   const prev = cfg;
-  cfg = { repo: clean, token: token.trim(), branch: (branch || '').trim(), auto: true, lastSync: 0, headSha: null, dirty: true };
+  cfg = { repo: clean, token: tok, branch: br, auto: true, lastSync: 0, headSha: null, dirty: true };
   try {
     const info = await gh(repoPath());
     if (info.permissions && !info.permissions.push) throw new GhError(403, 'The token can read this repo but not write to it. It needs "Contents: Read and write".');
@@ -351,7 +367,7 @@ export async function connect({ repo, token, branch }) {
     if (cfg.branch === cfg.defaultBranch) cfg.branch = '';
     if (!info.private) cfg.public = true;
   } catch (e) { cfg = prev; throw e; }
-  await saveCfg();
+  await saveCfg(); await bumpRev();
   publish({ status: 'idle', message: '', lastSync: 0, public: !!cfg.public });
   return syncNow();
 }
@@ -381,6 +397,8 @@ export async function initSync() {
   if (rec) {
     const { tokenEnc, ...rest } = rec;
     try { cfg = tokenEnc ? { ...rest, token: await unseal(vaultKey(), tokenEnc) } : rest; } catch { cfg = null; }
+    // the stored values end up in request paths, so check them again
+    if (cfg && (!parseRepo(cfg.repo) || (cfg.branch && (!/^[\w./-]{1,100}$/.test(cfg.branch) || cfg.branch.includes('..'))))) cfg = null;
   }
   publish({ ready: true, status: cfg ? 'idle' : 'off', message: '', lastSync: cfg?.lastSync || 0, public: !!cfg?.public });
   if (!wired) {

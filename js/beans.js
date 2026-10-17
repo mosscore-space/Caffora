@@ -5,7 +5,7 @@ import {
   saveBean, deleteBean, consumedBy, remaining, freshness, ROAST_LABEL, brewsOfBean, WINDOW, onChange,
 } from './store.js';
 import { openSheet, toast, confirmDialog, field, group, section, selectButton, segmented, pickFromList, pickDate } from './ui.js';
-import { beanThumb, catColor, noteChip, altitudeText, roastLabel, chip, freshnessSlide, stockBar, emptyState, pageHead } from './parts.js';
+import { beanThumb, catColor, noteChip, altitudeText, roastLabel, chip, freshnessSlide, stockBar, emptyState, pageHead, searchText } from './parts.js';
 import { loadWorld, regionNames } from './geo.js';
 import { openBrewForm } from './brews.js';
 import { canEdit } from './auth.js';
@@ -21,7 +21,7 @@ export function renderBeans(root) {
   const add = () => openBeanForm();
   root.append(
     pageHead('Beans', S.beans.length ? `${active.length} in the cupboard${finished.length ? ` · ${finished.length} finished` : ''}` : 'Your coffee shelf',
-      h('button.btn.primary.head-add', { type: 'button', onclick: add }, icon('plus', 18), 'Add beans')),
+      h('button.btn.primary.head-add', { type: 'button', onclick: add }, icon('plus', 18), 'Add beans'), { search: true }),
   );
   if (!S.beans.length) {
     root.append(emptyState({
@@ -48,7 +48,8 @@ function beanCard(b) {
   const origin = [b.country, b.region].filter(Boolean).join(' · ');
   const facts = [roastLabel(b.roast), b.process, b.variety, altitudeText(b)].filter(Boolean);
   const notes = (b.notes || []);
-  const card = h('article.bean' + (b.finished ? '.finished' : '') + (f ? '.st-' + f.state : ''), { tabindex: 0, role: 'button', onclick: () => openBeanDetail(b.id), onkeydown: (e) => { if (e.key === 'Enter') openBeanDetail(b.id); } },
+  const card = h('article.bean' + (b.finished ? '.finished' : '') + (f ? '.st-' + f.state : ''), { tabindex: 0, role: 'button', onclick: () => openBeanDetail(b.id), onkeydown: (e) => { if (e.key === 'Enter') openBeanDetail(b.id); },
+      dataset: { search: searchText(b.name, b.country, b.region, b.variety, b.process, b.farm, b.producer, b.washStation, roastLabel(b.roast), notes.map(n => n.n).join(' ')) } },
     h('div.bean-top',
       beanThumb(b, 72),
       h('div.bean-main',
@@ -60,7 +61,7 @@ function beanCard(b) {
     stockBar(b),
     h('div.bean-foot',
       h('span.muted', b.finished ? `Roasted ${fmtDate(b.roastDate)}` : `Roasted ${fmtDate(b.roastDate, false)} · best ${fmtDate(f.start, false)} – ${fmtDate(f.end, false)}`),
-      b.finished
+      !canEdit() ? null : b.finished
         ? h('button.link', { type: 'button', onclick: (e) => { e.stopPropagation(); reopen(b); } }, 'Reopen bag')
         : h('button.link', { type: 'button', onclick: (e) => { e.stopPropagation(); markFinished(b); } }, 'Mark finished')));
   return card;

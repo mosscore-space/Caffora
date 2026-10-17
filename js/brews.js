@@ -4,7 +4,7 @@ import {
   S, beanById, grinderById, methodById, methods, saveBrew, deleteBrew, saveBean, remaining, lastBrewOf, onChange,
 } from './store.js';
 import { openSheet, toast, confirmDialog, field, group, section, selectButton, pickFromList, pickTime, pickDate, StarSlider, StarsStatic, Radar, SENSORY, Stepper } from './ui.js';
-import { beanThumb, emptyState, pageHead, chip } from './parts.js';
+import { beanThumb, emptyState, pageHead, chip, searchText } from './parts.js';
 import { grinderSummary } from './grinders.js';
 import { canEdit } from './auth.js';
 import { nav } from './nav.js';
@@ -20,7 +20,7 @@ export function renderBrews(root) {
   const hasBeans = S.beans.some(b => !b.finished);
   const add = () => openBrewForm();
   root.append(pageHead('Brews', S.brews.length ? `${S.brews.length} ${S.brews.length === 1 ? 'brew' : 'brews'} logged` : 'Your brew log',
-    h('button.btn.primary.head-add', { type: 'button', onclick: add }, icon('plus', 18), 'New brew')));
+    h('button.btn.primary.head-add', { type: 'button', onclick: add }, icon('plus', 18), 'New brew'), { search: true }));
   if (!S.brews.length) {
     root.append(hasBeans
       ? emptyState({ iconName: 'brews', title: 'No brews yet', text: 'Log a brew to track your recipe, taste and ratings, and to see your stats.', action: h('button.btn.primary', { type: 'button', onclick: add }, icon('plus', 18), 'Log your first brew') })
@@ -41,10 +41,13 @@ export function renderBrews(root) {
 function brewRow(b) {
   const bean = beanById(b.beanId), m = methodById(b.methodId), g = grinderById(b.grinderId);
   const bits = [m?.name, b.dose ? fmtG(b.dose) : null, b.water ? `→ ${fmtG(b.water)}` : null, b.dose && b.water ? ratioText(b.dose, b.water) : null, b.temp ? `${b.temp}°C` : null, b.time ? fmtTime(b.time) : null].filter(Boolean);
-  return h('article.brew', { tabindex: 0, role: 'button', onclick: () => openBrewDetail(b.id), onkeydown: (e) => { if (e.key === 'Enter') openBrewDetail(b.id); } },
+  const tier = !b.rating ? null : b.rating >= 4.5 ? ['hi', 'Perfect'] : b.rating >= 3.5 ? ['good', 'Good'] : b.rating >= 2.5 ? ['ok', 'Okay'] : ['low', 'Off'];
+  return h('article.brew' + (tier ? '.t-' + tier[0] : ''), {
+    tabindex: 0, role: 'button', onclick: () => openBrewDetail(b.id), onkeydown: (e) => { if (e.key === 'Enter') openBrewDetail(b.id); },
+    dataset: { search: searchText(bean?.name, bean?.country, bean?.region, bean?.variety, m?.name, g?.name, b.date) } },
     h('div.brew-ico', m ? methodIcon(m.id, 46) : icon('brews', 26)),
     h('div.brew-main',
-      h('h3', bean?.name || 'Deleted beans'),
+      h('div.brew-title', h('h3', bean?.name || 'Deleted beans'), tier ? h('span.tier.t-' + tier[0], tier[1]) : null),
       h('p.brew-bits', bits.join(' · ')),
       h('div.brew-rate', b.rating ? [StarsStatic(b.rating), h('span.rate-n', b.rating.toFixed(1))] : h('span.muted.small', 'Not rated'))),
     h('div.brew-radar', Radar({ values: b.sensory || {}, size: 76, compact: true }).el));
