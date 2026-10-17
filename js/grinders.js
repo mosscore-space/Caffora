@@ -1,6 +1,7 @@
 // Grinders tab: list + add/edit form.
 import { h, icon, clear, numericInput, nf0 } from './util.js';
 import { S, saveGrinder, deleteGrinder } from './store.js';
+import { canEdit } from './auth.js';
 import { openSheet, toast, confirmDialog, field, group, segmented } from './ui.js';
 import { emptyState, pageHead, chip } from './parts.js';
 
@@ -25,19 +26,20 @@ export function renderGrinders(root) {
   } else {
     root.append(h('div.grinder-list', S.grinders.map(g => {
       const uses = S.brews.filter(b => b.grinderId === g.id).length;
-      return h('article.grinder', { tabindex: 0, role: 'button', onclick: () => openGrinderForm(g), onkeydown: (e) => { if (e.key === 'Enter') openGrinderForm(g); } },
+      return h('article.grinder', canEdit() ? { tabindex: 0, role: 'button', onclick: () => openGrinderForm(g), onkeydown: (e) => { if (e.key === 'Enter') openGrinderForm(g); } } : {},
         h('div.grinder-ico', icon('grinders', 30)),
         h('div.grinder-main',
           h('h3', g.name),
           h('p.muted', grinderSummary(g)),
           h('div.bean-facts', chip(`Step ${stepLabel(g.step)}`), chip(`${nf0.format(g.clicks)} clicks max`), uses ? chip(`${uses} ${uses === 1 ? 'brew' : 'brews'}`) : null)),
-        icon('chevronR', 20, 'go'));
+        canEdit() ? icon('chevronR', 20, 'go') : null);
     })));
   }
   root.append(h('button.fab', { type: 'button', 'aria-label': 'Add grinder', onclick: add }, icon('plus', 26)));
 }
 
 export function openGrinderForm(existing = null) {
+  if (!canEdit()) { toast('Sign in to edit.'); return; }
   const editing = !!existing;
   const d = existing ? { ...existing } : { name: '', type: 'manual', burr: 'conical', step: 1, clicks: '' };
   const nameIn = h('input', { type: 'text', value: d.name, placeholder: 'e.g. Comandante C40', autocomplete: 'off', maxlength: 60 });

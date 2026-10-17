@@ -48,6 +48,22 @@ How it behaves:
 - "Disconnect" only makes the device forget the token. Nothing is deleted locally or on GitHub.
 - To restore after clearing a browser or getting a new phone: install the app, connect, and everything comes back.
 
+## Passcode and Quick peek
+
+Settings > Passcode locks the app. After that, each launch shows a lock screen with two choices:
+
+- **Sign in to edit**: enter your passcode to add, change and delete things, and to use sync.
+- **Quick peek**: a view-only mode for showing someone around. There are no add, edit or delete buttons, and Settings only offers themes.
+  A bar at the top says "Viewing only" and signs you in when tapped.
+
+"Lock when I leave the app" (Settings > Passcode) sends the app back to the lock screen after it has been out of sight for the time you choose.
+The lock icon in each page header, or "Lock now" in Settings, locks it at once.
+
+What this is, and isn't: it keeps casual snoopers from editing, and it encrypts your GitHub token with a key made from the passcode.
+It does not encrypt your beans and brews on the device, so use your phone's own screen lock for that. A forgotten passcode cannot be
+recovered. "Forgot passcode?" erases this device's data so you can start over, then connect GitHub again to get your data back.
+Anyone who opens the hosted address on their own device only sees their own, empty copy of the app.
+
 ## Updating
 
 The service worker serves cached files and refreshes them in the background, so a new version appears on the

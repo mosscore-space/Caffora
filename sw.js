@@ -1,9 +1,9 @@
 /* Caffora service worker: precache the app shell, then serve cache-first and refresh in the background. */
-const VERSION = 'caffora-v2';
+const VERSION = 'caffora-v3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/util.js', 'js/db.js', 'js/store.js', 'js/ui.js', 'js/parts.js', 'js/geo.js', 'js/nav.js',
-  'js/beans.js', 'js/brews.js', 'js/grinders.js', 'js/stats.js', 'js/map.js', 'js/settings.js', 'js/sync.js',
+  'js/beans.js', 'js/brews.js', 'js/grinders.js', 'js/stats.js', 'js/map.js', 'js/settings.js', 'js/sync.js', 'js/auth.js', 'js/lock.js',
   'vendor/d3.min.js', 'vendor/topojson-client.min.js',
   'fonts/fraunces-latin-wght-normal.woff2', 'fonts/figtree-latin-wght-normal.woff2',
   'data/lists.json', 'data/region-aliases.json', 'data/world.topo.json',

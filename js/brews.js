@@ -6,6 +6,7 @@ import {
 import { openSheet, toast, confirmDialog, field, group, section, selectButton, pickFromList, pickTime, pickDate, StarSlider, StarsStatic, Radar, SENSORY, Stepper } from './ui.js';
 import { beanThumb, emptyState, pageHead, chip } from './parts.js';
 import { grinderSummary } from './grinders.js';
+import { canEdit } from './auth.js';
 import { nav } from './nav.js';
 
 export const ratioText = (dose, water) => (dose > 0 && water > 0 ? `1 : ${round1(water / dose)}` : '—');
@@ -71,13 +72,13 @@ export function openBrewDetail(id) {
         h('div.rate-line', h('span', 'Flavor profile accuracy'), b.accuracy ? [StarsStatic(b.accuracy), h('b', b.accuracy.toFixed(1))] : h('span.muted', 'Not rated')),
         h('div.rate-line', h('span', 'Overall'), b.rating ? [StarsStatic(b.rating), h('b', b.rating.toFixed(1))] : h('span.muted', 'Not rated'))),
     );
-    fill(sheet.foot, 
+    fill(sheet.foot, ...(!canEdit() ? [h('button.btn', { type: 'button', onclick: () => sheet.close() }, 'Close')] : [
       bean && !bean.finished ? h('button.btn.primary', { type: 'button', onclick: () => { sheet.close(); openBrewForm({ beanId: b.beanId }); } }, 'Brew again') : null,
       h('button.btn', { type: 'button', onclick: () => { sheet.close(); openBrewForm({ brew: b }); } }, icon('edit', 16), 'Edit'),
       h('button.btn.danger-ghost', { type: 'button', onclick: async () => {
         const ok = await confirmDialog({ title: 'Delete this brew?', text: 'Its dose goes back to the bag’s remaining grams.', confirmLabel: 'Delete', danger: true });
         if (ok) { await deleteBrew(b.id); sheet.close(); toast('Brew deleted'); }
-      } }, icon('trash', 16), 'Delete'));
+      } }, icon('trash', 16), 'Delete')]));
   };
   const sheet = openSheet({ title: '', size: 'lg', className: 'detail', body: h('div'), footer: h('div') });
   sheet.foot = sheet.el.querySelector('.sheet-foot');
@@ -92,6 +93,7 @@ export function openBrewDetail(id) {
 const defaultSensory = () => ({ aroma: 5, sweetness: 5, acidity: 5, bitterness: 5, body: 5 });
 
 export function openBrewForm({ beanId, brew } = {}) {
+  if (!canEdit()) { toast('Sign in to edit.'); return; }
   const editing = !!brew;
   const activeBeans = S.beans.filter(b => !b.finished);
   if (!editing && !activeBeans.length) {

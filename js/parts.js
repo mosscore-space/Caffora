@@ -1,5 +1,6 @@
 // Reusable view pieces: thumbnails, freshness slide, chips, empty states.
 import { h, icon, beanSVG, blobURL, fmtDate, nf0, fmtG, round1 } from './util.js';
+import { auth, lock } from './auth.js';
 import { freshness, remaining, consumedBy, ROAST_LABEL } from './store.js';
 
 /* ---- flavor category colors ---- */
@@ -86,10 +87,12 @@ export function stockBar(bean) {
 }
 
 export function emptyState({ iconName = 'empty', title, text, action }) {
-  return h('div.empty', h('div.empty-ico', icon(iconName, 34)), h('h3', title), text ? h('p', text) : null, action || null);
+  return h('div.empty', h('div.empty-ico', icon(iconName, 34)), h('h3', title), text ? h('p', text) : null, (auth.mode === 'peek' ? null : action) || null);
 }
 
 export function pageHead(title, sub, actions) {
-  return h('header.page-head', h('div', h('h1', title), sub ? h('p.page-sub', sub) : null), h('div.page-actions', actions || null));
+  const lockBtn = auth.hasPasscode && auth.mode === 'edit'
+    ? h('button.btn.ghost.sm.lock-btn', { type: 'button', 'aria-label': 'Lock Caffora', title: 'Lock', onclick: () => lock() }, icon('lock', 18)) : null;
+  return h('header.page-head', h('div', h('h1', title), sub ? h('p.page-sub', sub) : null), h('div.page-actions', actions || null, lockBtn));
 }
 export { round1 };

@@ -44,6 +44,9 @@ export const db = {
   kvSet: (key, val) => tx('kv', 'readwrite', os => { os.put(val, key); }),
 };
 
+/** Close our connection (needed before the database can be deleted). */
+export async function closeDb() { if (dbp) { try { (await dbp).close(); } catch { /* ignore */ } dbp = null; } }
+
 /** Ask the browser not to evict our data. */
 export async function persistStorage() {
   try { if (navigator.storage?.persist) await navigator.storage.persist(); } catch { /* ignore */ }

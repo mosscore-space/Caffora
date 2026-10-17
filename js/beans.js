@@ -8,6 +8,7 @@ import { openSheet, toast, confirmDialog, field, group, section, selectButton, s
 import { beanThumb, catColor, noteChip, altitudeText, roastLabel, chip, freshnessSlide, stockBar, emptyState, pageHead } from './parts.js';
 import { loadWorld, regionNames } from './geo.js';
 import { openBrewForm } from './brews.js';
+import { canEdit } from './auth.js';
 
 let filter = 'active';
 
@@ -110,7 +111,7 @@ export function openBeanDetail(id) {
       (b.notes || []).length ? h('div.detail-notes', h('h4', 'Flavor notes'), h('div.chips', b.notes.map(n => noteChip(n)))) : null,
       h('p.muted.small', brews.length ? `${brews.length} ${brews.length === 1 ? 'brew' : 'brews'} logged with this coffee.` : 'No brews logged with this coffee yet.'),
     );
-    fill(sheet.foot, 
+    fill(sheet.foot, ...(!canEdit() ? [h('button.btn', { type: 'button', onclick: () => sheet.close() }, 'Close')] : [
       !b.finished ? h('button.btn.primary', { type: 'button', onclick: () => { sheet.close(); openBrewForm({ beanId: b.id }); } }, 'Brew this') : null,
       h('button.btn', { type: 'button', onclick: () => { sheet.close(); openBeanForm(b); } }, icon('edit', 16), 'Edit'),
       b.finished ? h('button.btn', { type: 'button', onclick: () => reopen(b) }, 'Reopen bag') : h('button.btn', { type: 'button', onclick: () => markFinished(b) }, 'Mark finished'),
@@ -119,7 +120,7 @@ export function openBeanDetail(id) {
         const ok = await confirmDialog({ title: 'Delete these beans?', text: n ? `${b.name} and its ${n} ${n === 1 ? 'brew' : 'brews'} will be deleted. This can't be undone.` : `${b.name} will be deleted. This can't be undone.`, confirmLabel: 'Delete', danger: true });
         if (ok) { await deleteBean(b.id); sheet.close(); toast('Beans deleted'); }
       } }, icon('trash', 16), 'Delete'),
-    );
+    ]));
   };
   const sheet = openSheet({ title: '', size: 'lg', className: 'detail', body: h('div'), footer: h('div.foot-actions') });
   sheet.foot = sheet.el.querySelector('.sheet-foot');
@@ -218,6 +219,7 @@ function FlavorPicker(selected) {
 const UNIT_G = { g: 1, oz: 28.349523125, lb: 453.59237 };
 
 export function openBeanForm(existing = null) {
+  if (!canEdit()) { toast('Sign in to edit.'); return; }
   const editing = !!existing;
   const d = existing ? { ...existing, notes: [...(existing.notes || [])] } : {
     name: '', country: '', countryCode: '', region: '', variety: '', roast: '', process: '', altFrom: '', altTo: '', altUnit: 'm',

@@ -2,7 +2,8 @@
 import { h, icon, clear } from './util.js';
 import { pageHead } from './parts.js';
 import { db } from './db.js';
-import { field, confirmDialog, toast } from './ui.js';
+import { field, confirmDialog, toast, openSheet, segmented } from './ui.js';
+import { auth, canEdit, lock, setPasscode, removePasscode, setAutoLock, AUTO_LOCK_OPTIONS } from './auth.js';
 import { sync, onSyncState, syncConfig, connect, disconnect, syncNow, setAuto, isPublicRepo } from './sync.js';
 
 export const THEMES = [
@@ -99,12 +100,73 @@ function syncSection() {
   return box;
 }
 
+/** A small sheet that asks for one or more passwords. onSubmit may throw an Error to show its message. */
+function passSheet({ title, intro, fields, confirmLabel, danger, onSubmit }) {
+  const inputs = fields.map(f => h('input', { type: 'password', autocomplete: 'off', placeholder: f.placeholder || '', 'aria-label': f.label }));
+  const err = h('p.sync-err', { role: 'alert', hidden: true });
+  const submit = async () => {
+    err.hidden = true; ok.disabled = true;
+    try { await onSubmit(inputs.map(i => i.value)); sheet.close(); }
+    catch (e) { err.textContent = e.message; err.hidden = false; ok.disabled = false; }
+  };
+  const ok = h('button.btn.primary' + (danger ? '.danger' : ''), { type: 'button', onclick: submit }, confirmLabel);
+  const sheet = openSheet({
+    title, size: 'sm', className: 'confirm',
+    body: h('form.sync-form', { onsubmit: (e) => { e.preventDefault(); submit(); } },
+      intro ? h('p.muted', intro) : null, ...fields.map((f, i) => field(f.label, inputs[i], f.hint)), err, h('button', { type: 'submit', hidden: true })),
+    footer: [h('button.btn', { type: 'button', onclick: () => sheet.close() }, 'Cancel'), ok],
+  });
+  setTimeout(() => inputs[0]?.focus(), 250);
+}
+
+function securitySection(root) {
+  const again = () => renderSettings(root);
+  if (!auth.hasPasscode) {
+    const p1 = h('input', { type: 'password', autocomplete: 'off', placeholder: 'New passcode', 'aria-label': 'New passcode' });
+    const p2 = h('input', { type: 'password', autocomplete: 'off', placeholder: 'Repeat passcode', 'aria-label': 'Repeat passcode' });
+    const err = h('p.sync-err', { role: 'alert', hidden: true });
+    const go = h('button.btn.primary', { type: 'button' }, 'Set passcode');
+    go.onclick = async () => {
+      err.hidden = true;
+      if (p1.value.length < 4) { err.textContent = 'Use at least 4 characters.'; err.hidden = false; return; }
+      if (p1.value !== p2.value) { err.textContent = 'The two passcodes do not match.'; err.hidden = false; return; }
+      go.disabled = true;
+      try { await setPasscode(p1.value); toast('Passcode set. Caffora will ask for it next time.'); } catch (e) { err.textContent = e.message; err.hidden = false; go.disabled = false; }
+    };
+    return h('section.settings-sec',
+      h('h2', 'Passcode'),
+      h('div.sync-body',
+        h('p.muted', 'Lock Caffora so that only you can edit. Anyone else can take a quick peek, which is view only. A longer passcode is safer, and it also keeps your GitHub token encrypted.'),
+        h('div.sync-form', p1, p2), err, go));
+  }
+  return h('section.settings-sec',
+    h('h2', 'Passcode'),
+    h('div.sync-body',
+      h('div.field', h('div.field-label', 'Lock when I leave the app'),
+        segmented({ options: AUTO_LOCK_OPTIONS.map(o => ({ v: o.v === null ? 'never' : o.v, label: o.label })), value: auth.autoLock === null ? 'never' : auth.autoLock, onChange: (v) => setAutoLock(v === 'never' ? null : Number(v)) }).el,
+        h('div.field-hint', 'How long Caffora can be out of sight before it asks for the passcode again.')),
+      h('div.sync-actions',
+        h('button.btn.primary', { type: 'button', onclick: () => lock() }, icon('lock', 16), 'Lock now'),
+        h('button.btn', { type: 'button', onclick: () => passSheet({
+          title: 'Change passcode', confirmLabel: 'Change',
+          fields: [{ label: 'Current passcode' }, { label: 'New passcode' }, { label: 'Repeat new passcode' }],
+          onSubmit: async ([cur, a, b]) => {
+            if (a.length < 4) throw new Error('Use at least 4 characters.');
+            if (a !== b) throw new Error('The two new passcodes do not match.');
+            await setPasscode(a, cur); toast('Passcode changed');
+          } }) }, 'Change'),
+        h('button.btn.danger-ghost', { type: 'button', onclick: () => passSheet({
+          title: 'Remove passcode', intro: 'Caffora will open without asking, and anyone can edit.', confirmLabel: 'Remove', danger: true,
+          fields: [{ label: 'Current passcode' }],
+          onSubmit: async ([cur]) => { await removePasscode(cur); toast('Passcode removed'); } }) }, 'Remove'))));
+}
+
 export function renderSettings(root) {
   clear(root);
   const cur = getTheme();
   root.append(
     pageHead('Settings', 'Make Caffora yours'),
-    syncSection(),
+    ...(canEdit() ? [syncSection(), securitySection(root)] : [h('p.muted.peek-note', 'You are viewing only. Sign in to change settings, beans, brews and grinders.')]),
     h('section.settings-sec',
       h('h2', 'Theme'),
       h('div.themes', { role: 'radiogroup', 'aria-label': 'Theme' }, THEMES.map(t =>
@@ -112,6 +174,6 @@ export function renderSettings(root) {
           h('span.swatch', t.sw.map(c => h('i', { style: { background: c } }))),
           h('span.theme-name', t.name), h('span.theme-note', t.note),
           t.id === cur ? icon('check', 18, 'theme-check') : null)))),
-    h('p.muted.small.about', 'Caffora keeps everything on this device and works offline once installed. Connect a GitHub repo above to back it up and share it between devices.'),
+    h('p.muted.small.about', 'Caffora keeps everything on this device and works offline once installed.'),
   );
 }

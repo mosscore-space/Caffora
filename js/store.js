@@ -1,5 +1,6 @@
 // App state, derived values and the reference lists (varieties, processes, flavors, methods, countries).
 import { db } from './db.js';
+import { canEdit } from './auth.js';
 import { today, daysBetween, parseYMD, addDays, uid, norm } from './util.js';
 
 export const S = {
@@ -83,7 +84,7 @@ export function flavorLibrary() {
   return lib;
 }
 /** Persist the user's additions (lib is a full library object from a form). */
-export async function saveFlavorLibrary(lib) {
+export async function saveFlavorLibrary(lib) { need();
   const custom = {};
   for (const [c, notes] of Object.entries(lib)) {
     const base = new Set((S.lists.flavors[c] || []).map(n => n.toLowerCase()));
@@ -93,33 +94,34 @@ export async function saveFlavorLibrary(lib) {
   S.custom.flavors = custom;
   await db.kvSet('customFlavors', custom); touched('lists');
 }
-export async function addCustomVariety(name) {
+export async function addCustomVariety(name) { need();
   if (!name || varieties().some(v => v.toLowerCase() === name.toLowerCase())) return;
   S.custom.varieties = [...S.custom.varieties, name];
   await db.kvSet('customVarieties', S.custom.varieties); touched('lists');
 }
-export async function addCustomProcess(name) {
+export async function addCustomProcess(name) { need();
   if (!name || processes().some(v => v.toLowerCase() === name.toLowerCase())) return;
   S.custom.processes = [...S.custom.processes, name];
   await db.kvSet('customProcesses', S.custom.processes); touched('lists');
 }
 
 /* ---------- CRUD ---------- */
-export async function saveBean(bean) {
+const need = () => { if (!canEdit()) throw new Error('Sign in to edit.'); };
+export async function saveBean(bean) { need();
   if (!bean.id) { bean.id = uid(); bean.created = Date.now(); }
   bean.updated = Date.now();
   const i = S.beans.findIndex(b => b.id === bean.id);
   if (i >= 0) S.beans[i] = bean; else S.beans.unshift(bean);
   await db.put('beans', bean); emit('beans'); return bean;
 }
-export async function deleteBean(id) {
+export async function deleteBean(id) { need();
   const brewIds = S.brews.filter(b => b.beanId === id).map(b => b.id);
   S.beans = S.beans.filter(b => b.id !== id);
   S.brews = S.brews.filter(b => b.beanId !== id);
   await tombstone('beans', [id]); await tombstone('brews', brewIds);
   await db.del('beans', id); await db.delMany('brews', brewIds); emit('beans');
 }
-export async function saveBrew(brew) {
+export async function saveBrew(brew) { need();
   if (!brew.id) { brew.id = uid(); brew.created = Date.now(); }
   brew.updated = Date.now();
   const i = S.brews.findIndex(b => b.id === brew.id);
@@ -127,15 +129,15 @@ export async function saveBrew(brew) {
   S.brews.sort((a, b) => (b.date + String(b.created).padStart(15, '0')).localeCompare(a.date + String(a.created).padStart(15, '0')));
   await db.put('brews', brew); emit('brews'); return brew;
 }
-export async function deleteBrew(id) { S.brews = S.brews.filter(b => b.id !== id); await tombstone('brews', [id]); await db.del('brews', id); emit('brews'); }
-export async function saveGrinder(g) {
+export async function deleteBrew(id) { need(); S.brews = S.brews.filter(b => b.id !== id); await tombstone('brews', [id]); await db.del('brews', id); emit('brews'); }
+export async function saveGrinder(g) { need();
   if (!g.id) { g.id = uid(); g.created = Date.now(); }
   g.updated = Date.now();
   const i = S.grinders.findIndex(x => x.id === g.id);
   if (i >= 0) S.grinders[i] = g; else S.grinders.push(g);
   await db.put('grinders', g); emit('grinders'); return g;
 }
-export async function deleteGrinder(id) { S.grinders = S.grinders.filter(g => g.id !== id); await tombstone('grinders', [id]); await db.del('grinders', id); emit('grinders'); }
+export async function deleteGrinder(id) { need(); S.grinders = S.grinders.filter(g => g.id !== id); await tombstone('grinders', [id]); await db.del('grinders', id); emit('grinders'); }
 
 /* ---------- derived ---------- */
 export const beanById = (id) => S.beans.find(b => b.id === id);

@@ -8,6 +8,7 @@
 // record differs on two devices the newer edit wins, and deletions are remembered so they don't come back.
 import { db } from './db.js';
 import { S, onData, applyMerged } from './store.js';
+import { vaultKey, seal, unseal } from './auth.js';
 
 const API = 'https://api.github.com';
 const DATA_FILE = 'caffora.json';
@@ -24,7 +25,15 @@ export const onSyncState = (fn) => { subs.add(fn); return () => subs.delete(fn);
 const publish = (patch) => { Object.assign(sync, patch); subs.forEach(fn => fn(sync)); };
 
 export const syncConfig = () => (cfg ? { repo: cfg.repo, branch: cfg.branch || cfg.defaultBranch || '', auto: cfg.auto !== false } : null);
-const saveCfg = () => db.kvSet('sync', cfg);
+/** Saved with the token encrypted when a passcode is set (the key exists while you are signed in). */
+async function saveCfg() {
+  if (!cfg) return;
+  const { token, ...rest } = cfg;
+  const key = vaultKey();
+  await db.kvSet('sync', key ? { ...rest, tokenEnc: await seal(key, token) } : { ...rest, token });
+}
+/** Re-save the settings after the passcode was set, changed or removed. */
+export const reseal = () => saveCfg();
 
 /* =========================================================
    Merge (pure, exported for testing)
@@ -362,20 +371,39 @@ export async function setAuto(on) {
 
 export const isPublicRepo = () => !!cfg?.public;
 
-/** Called once at boot: restore saved settings, pull right away, and watch for changes. */
+let wired = false;
+/** Start syncing: restore saved settings (decrypting the token), pull right away, and watch for changes.
+ *  Call it after sign-in; call stopSync() when locking. */
 export async function initSync() {
-  try { cfg = (await db.kvGet('sync')) || null; } catch { cfg = null; }
-  publish({ ready: true, status: cfg ? 'idle' : 'off', lastSync: cfg?.lastSync || 0, public: !!cfg?.public });
-  onData(() => {
-    if (!cfg) return;
-    seq++; cfg.dirty = true; saveCfg();
-    schedule();
-  });
-  addEventListener('online', () => schedule(800));
-  document.addEventListener('visibilitychange', () => {
-    if (!cfg) return;
-    if (document.hidden) { if (cfg.dirty && cfg.auto !== false) syncNow(); }       // push before the app goes away
-    else if (cfg.auto !== false && Date.now() - (cfg.lastSync || 0) > 60000) schedule(300);
-  });
+  let rec = null;
+  try { rec = await db.kvGet('sync'); } catch { rec = null; }
+  cfg = null;
+  if (rec) {
+    const { tokenEnc, ...rest } = rec;
+    try { cfg = tokenEnc ? { ...rest, token: await unseal(vaultKey(), tokenEnc) } : rest; } catch { cfg = null; }
+  }
+  publish({ ready: true, status: cfg ? 'idle' : 'off', message: '', lastSync: cfg?.lastSync || 0, public: !!cfg?.public });
+  if (!wired) {
+    wired = true;
+    onData(() => {
+      if (!cfg) return;
+      seq++; cfg.dirty = true; saveCfg();
+      schedule();
+    });
+    addEventListener('online', () => schedule(800));
+    document.addEventListener('visibilitychange', () => {
+      if (!cfg) return;
+      if (document.hidden) { if (cfg.dirty && cfg.auto !== false) syncNow(); }     // push before the app goes away
+      else if (cfg.auto !== false && Date.now() - (cfg.lastSync || 0) > 60000) schedule(300);
+    });
+  }
   if (cfg && cfg.auto !== false) schedule(1200);
+}
+
+/** Stop syncing and forget the token from memory (used when locking). */
+export async function stopSync() {
+  clearTimeout(timer);
+  try { await running; } catch { /* ignore */ }
+  cfg = null;
+  publish({ status: 'off', message: '', lastSync: 0, public: false });
 }
