@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-theme="mocha">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Caffora</title>
+  <meta name="description" content="Track your beans, brews and grinders, and see where your coffee comes from.">
+  <meta name="theme-color" content="#1e1e2e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Caffora">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/fraunces-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    (function () {
+      try {
+        var t = localStorage.getItem('caffora-theme') || 'mocha';
+        if (t === 'auto') t = matchMedia('(prefers-color-scheme: light)').matches ? 'latte' : 'mocha';
+        document.documentElement.setAttribute('data-theme', t);
+        var m = { latte: '#eff1f5', frappe: '#303446', macchiato: '#24273a', mocha: '#1e1e2e' }[t];
+        if (m) document.querySelector('meta[name="theme-color"]').setAttribute('content', m);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="vendor/d3.min.js" defer></script>
+  <script src="vendor/topojson-client.min.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    <nav id="nav" class="nav" aria-label="Main"></nav>
+    <main id="view" tabindex="-1"></main>
+  </div>
+  <div id="sheets"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <noscript>Caffora needs JavaScript to run.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
