@@ -1,0 +1,14 @@
+{
+ "app": "caffora-config",
+ "v": 1,
+ "rev": "oRT0oLG4xvYV",
+ "iter": 210000,
+ "salt": "rj42aQFveRygafy4iW4Iww==",
+ "check": "EwkrReKiLTnI9zv7YYBfnpZS1oEgxsAg1L3kfw98SfU=",
+ "repo": "mosscore-space/Caffora-data",
+ "branch": "",
+ "tokenEnc": {
+  "iv": "G3ArYAWKH0PbgMEk",
+  "ct": "ddQVc9AhIKIAu/HsvzhyzuaeW2MZmNZ06ncrbdRWgPMA6fBNpEkel4iqTGxhLCWiIu6JqlCVKGJXP61MvQolcV+/Y/5X3QkuQThozXrl4nRzDAqnrot59gZSmbOjkD9UP0K52V8jKrGtGarOhw=="
+ }
+}
