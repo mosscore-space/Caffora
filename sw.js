@@ -1,5 +1,5 @@
 /* Caffora service worker: precache the app shell, then serve cache-first and refresh in the background. */
-const VERSION = 'caffora-v5';
+const VERSION = 'caffora-v6';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/util.js', 'js/db.js', 'js/store.js', 'js/ui.js', 'js/parts.js', 'js/geo.js', 'js/nav.js',
@@ -35,6 +35,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
   if (url.pathname.endsWith('/caffora.config.json')) return;      // the sign-in file must always come fresh from the network
+  if (url.pathname.endsWith('/manifest.webmanifest')) {            // the manifest decides the installed icon, so never serve a stale one while online
+    event.respondWith((async () => {
+      const cache = await caches.open(VERSION);
+      try { const res = await fetch(req, { cache: 'no-store' }); if (res && res.ok) { cache.put(req, res.clone()); return res; } } catch { /* offline */ }
+      return (await cache.match(req, { ignoreSearch: true })) || new Response('', { status: 503 });
+    })());
+    return;
+  }
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     const hit = await cache.match(req, { ignoreSearch: true });
