@@ -1,5 +1,5 @@
 /* Caffora service worker: precache the app shell, then serve cache-first and refresh in the background. */
-const VERSION = 'caffora-v4';
+const VERSION = 'caffora-v5';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/util.js', 'js/db.js', 'js/store.js', 'js/ui.js', 'js/parts.js', 'js/geo.js', 'js/nav.js',
@@ -7,7 +7,7 @@ const SHELL = [
   'vendor/d3.min.js', 'vendor/topojson-client.min.js',
   'fonts/fraunces-latin-wght-normal.woff2', 'fonts/figtree-latin-wght-normal.woff2',
   'data/lists.json', 'data/region-aliases.json', 'data/world.topo.json',
-  'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'icons/icon.svg', 'icons/icon-monochrome-512.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   '__METHOD_ICONS__',
 ];
 

@@ -19,6 +19,7 @@ All paths are relative, so it works at the site root or in a sub-folder.
 - Android / Chrome: open the site, then menu > Install app.
 - iPhone / Safari: Share > Add to Home Screen.
 - Desktop Chrome / Edge: install icon in the address bar.
+- Android themed icons: the app ships a single-colour icon, so on Android 13+ (including Samsung One UI) the home-screen icon can take your wallpaper and theme colours. Remove the installed app and add it again after updating, then turn on Themed icons in your launcher or Theme settings.
 
 After the first load it works fully offline, including the map.
 
