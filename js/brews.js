@@ -9,6 +9,7 @@ import { grinderSummary } from './grinders.js';
 import { canEdit } from './auth.js';
 import { nav } from './nav.js';
 
+export const isPending = (b) => b.stage === 'logged' || b.stage === 'timed';
 export const ratioText = (dose, water) => (dose > 0 && water > 0 ? `1 : ${round1(water / dose)}` : '—');
 const methodIcon = (id, size = 44) => h('img.method-ico', { src: `icons/methods/${id}.webp`, alt: '', width: size, height: size, loading: 'lazy', draggable: false });
 
@@ -40,17 +41,24 @@ export function renderBrews(root) {
 
 function brewRow(b) {
   const bean = beanById(b.beanId), m = methodById(b.methodId), g = grinderById(b.grinderId);
-  const bits = [m?.name, b.dose ? fmtG(b.dose) : null, b.water ? `→ ${fmtG(b.water)}` : null, b.dose && b.water ? ratioText(b.dose, b.water) : null, b.temp ? `${b.temp}°C` : null, b.time ? fmtTime(b.time) : null].filter(Boolean);
-  const tier = !b.rating ? null : b.rating >= 4.5 ? ['hi', 'Perfect'] : b.rating >= 3.5 ? ['good', 'Good'] : b.rating >= 2.5 ? ['ok', 'Okay'] : ['low', 'Off'];
-  return h('article.brew' + (tier ? '.t-' + tier[0] : ''), {
+  const pending = isPending(b);
+  const bits = [m?.name, b.dose ? fmtG(b.dose) : null, b.water ? `→ ${fmtG(b.water)}` : null, b.dose && b.water ? ratioText(b.dose, b.water) : null, b.temp ? `${b.temp}°C` : null, b.time ? fmtTime(b.time) : null,
+    pending && b.stage === 'logged' && b.grind != null && b.grind !== '' ? `grind ${b.grind}` : null].filter(Boolean);
+  const tier = pending || !b.rating ? null : b.rating >= 4.5 ? ['hi', 'Perfect'] : b.rating >= 3.5 ? ['good', 'Good'] : b.rating >= 2.5 ? ['ok', 'Okay'] : ['low', 'Off'];
+  const hint = b.stage === 'logged' ? 'Add water and time' : 'Add taste and rating';
+  return h('article.brew' + (pending ? '.t-pend' : tier ? '.t-' + tier[0] : ''), {
     tabindex: 0, role: 'button', onclick: () => openBrewDetail(b.id), onkeydown: (e) => { if (e.key === 'Enter') openBrewDetail(b.id); },
-    dataset: { search: searchText(bean?.name, bean?.country, bean?.region, bean?.variety, m?.name, g?.name, b.date) } },
+    dataset: { search: searchText(bean?.name, bean?.country, bean?.region, bean?.variety, m?.name, g?.name, b.date, pending ? 'needs review' : '') } },
     h('div.brew-ico', m ? methodIcon(m.id, 46) : icon('brews', 26)),
     h('div.brew-main',
-      h('div.brew-title', h('h3', bean?.name || 'Deleted beans'), tier ? h('span.tier.t-' + tier[0], tier[1]) : null),
+      h('div.brew-title', h('h3', bean?.name || 'Deleted beans'), pending ? h('span.tier.t-pend', 'Needs review') : tier ? h('span.tier.t-' + tier[0], tier[1]) : null),
       h('p.brew-bits', bits.join(' · ')),
-      h('div.brew-rate', b.rating ? [StarsStatic(b.rating), h('span.rate-n', b.rating.toFixed(1))] : h('span.muted.small', 'Not rated'))),
-    h('div.brew-radar', Radar({ values: b.sensory || {}, size: 76, compact: true }).el));
+      pending
+        ? (canEdit()
+          ? h('button.brew-review', { type: 'button', onclick: (e) => { e.stopPropagation(); openBrewReview(b.id); } }, h('span', 'Review the brew'), h('small', hint))
+          : h('span.muted.small', 'Not reviewed yet'))
+        : h('div.brew-rate', b.rating ? [StarsStatic(b.rating), h('span.rate-n', b.rating.toFixed(1))] : h('span.muted.small', 'Not rated'))),
+    pending ? null : h('div.brew-radar', Radar({ values: b.sensory || {}, size: 76, compact: true }).el));
 }
 
 /* =========================================================
@@ -70,13 +78,16 @@ export function openBrewDetail(id) {
         stat('Temp', b.temp ? `${b.temp}°C` : ''), stat('Time', b.time ? fmtTime(b.time) : ''),
         stat('Grind', b.grind != null && b.grind !== '' ? `${b.grind}${g ? ` / ${g.clicks}` : ''}` : '')),
       g ? h('p.muted.small', `Grinder: ${g.name} (${grinderSummary(g)})`) : null,
-      h('div.radar-box', Radar({ values: b.sensory || {}, size: 300 }).el),
-      h('div.rate-block',
-        h('div.rate-line', h('span', 'Flavor profile accuracy'), b.accuracy ? [StarsStatic(b.accuracy), h('b', b.accuracy.toFixed(1))] : h('span.muted', 'Not rated')),
-        h('div.rate-line', h('span', 'Overall'), b.rating ? [StarsStatic(b.rating), h('b', b.rating.toFixed(1))] : h('span.muted', 'Not rated'))),
+      isPending(b)
+        ? h('p.form-note', b.stage === 'logged' ? 'Still to add: water, extraction time, taste and rating.' : 'Still to add: taste and rating.')
+        : [h('div.radar-box', Radar({ values: b.sensory || {}, size: 300 }).el),
+          h('div.rate-block',
+            h('div.rate-line', h('span', 'Flavor profile accuracy'), b.accuracy ? [StarsStatic(b.accuracy), h('b', b.accuracy.toFixed(1))] : h('span.muted', 'Not rated')),
+            h('div.rate-line', h('span', 'Overall'), b.rating ? [StarsStatic(b.rating), h('b', b.rating.toFixed(1))] : h('span.muted', 'Not rated')))],
     );
     fill(sheet.foot, ...(!canEdit() ? [h('button.btn', { type: 'button', onclick: () => sheet.close() }, 'Close')] : [
-      bean && !bean.finished ? h('button.btn.primary', { type: 'button', onclick: () => { sheet.close(); openBrewForm({ beanId: b.beanId }); } }, 'Brew again') : null,
+      isPending(b) ? h('button.btn.primary', { type: 'button', onclick: () => { sheet.close(); openBrewReview(b.id); } }, 'Review the brew') : null,
+      !isPending(b) && bean && !bean.finished ? h('button.btn.primary', { type: 'button', onclick: () => { sheet.close(); openBrewForm({ beanId: b.beanId }); } }, 'Brew again') : null,
       h('button.btn', { type: 'button', onclick: () => { sheet.close(); openBrewForm({ brew: b }); } }, icon('edit', 16), 'Edit'),
       h('button.btn.danger-ghost', { type: 'button', onclick: async () => {
         const ok = await confirmDialog({ title: 'Delete this brew?', text: 'Its dose goes back to the bag’s remaining grams.', confirmLabel: 'Delete', danger: true });
@@ -94,16 +105,18 @@ export function openBrewDetail(id) {
    Form
    ========================================================= */
 const defaultSensory = () => ({ aroma: 5, sweetness: 5, acidity: 5, bitterness: 5, body: 5 });
+const hasSensory = (b) => Object.values(b.sensory || {}).some(v => v > 0);
 
 export function openBrewForm({ beanId, brew } = {}) {
   if (!canEdit()) { toast('Sign in to edit.'); return; }
   const editing = !!brew;
+  const quick = !editing;            // a new brew only asks for what you know before brewing; water, time, taste and rating come later
   const activeBeans = S.beans.filter(b => !b.finished);
   if (!editing && !activeBeans.length) {
     toast('Add an active bean first.', { action: { label: 'Go to Beans', fn: () => nav.go('beans') } });
     return;
   }
-  const d = editing ? { ...brew, sensory: { ...defaultSensory(), ...(brew.sensory || {}) } } : {
+  const d = editing ? { ...brew, sensory: hasSensory(brew) ? { ...defaultSensory(), ...brew.sensory } : defaultSensory() } : {
     beanId: null, methodId: 'v60', grinderId: S.brews[0]?.grinderId && grinderById(S.brews[0].grinderId) ? S.brews[0].grinderId : (S.grinders[0]?.id || null),
     grind: null, dose: '', water: '', temp: '', time: 0, sensory: defaultSensory(), accuracy: 0, rating: 0, date: today(),
   };
@@ -240,16 +253,19 @@ export function openBrewForm({ beanId, brew } = {}) {
     banner,
     section('', group('Bean', beanBtn), group('Method', methodBtn)),
     section('Grind', group('Grinder', grinderBtn), group('Grind size', grindStep.el, null), grindHint),
-    section('Process',
-      h('div.two', group('Coffee dose', doseW), group('Water / yield', waterW)), doseHint,
-      h('div.two', group('Temperature', tempW), group('Extraction time', timeBtn)),
-      h('div.ratio', h('span.ratio-k', 'Coffee to brew ratio'), ratioBig, ratioSub)),
-    section('Sensory profile', h('div.sensory', h('div.sliders', sliders.map(s => s.row)), h('div.radar-box', radar.el))),
-    section('Ratings',
+    quick
+      ? section('Process', h('div.two.stackable', group('Coffee dose', doseW), group('Temperature', tempW)), doseHint)
+      : section('Process',
+        h('div.two', group('Coffee dose', doseW), group('Water / yield', waterW)), doseHint,
+        h('div.two', group('Temperature', tempW), group('Extraction time', timeBtn)),
+        h('div.ratio', h('span.ratio-k', 'Coffee to brew ratio'), ratioBig, ratioSub)),
+    quick ? null : section('Sensory profile', h('div.sensory', h('div.sliders', sliders.map(s => s.row)), h('div.radar-box', radar.el))),
+    quick ? null : section('Ratings',
       group('Flavor profile accuracy', accuracy.el, 'How closely the cup matched the flavor notes on the bag.'),
       group('Overall rating', rating.el)),
     section('', group('Date of the brew', dateBtn)),
   );
+  if (quick) form.prepend(h('p.form-note', 'Save the basics now and put the phone down. After the brew, tap “Review the brew” on this brew to add water and time, then taste and rating.'));
 
   const sheet = openSheet({
     title: editing ? 'Edit brew' : 'New brew', size: 'lg', className: 'form-sheet brew-form', body: form,
@@ -268,15 +284,106 @@ export function openBrewForm({ beanId, brew } = {}) {
     if (!bean) { missing.push('bean'); beanBtn.markInvalid(true); }
     if (!(d.dose > 0)) { missing.push('coffee dose'); doseIn.classList.add('invalid'); }
     if (missing.length) { err.textContent = `Fill in: ${missing.join(', ')}.`; form.querySelector('.invalid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+    const later = quick ? { water: null, time: 0, sensory: { aroma: 0, sweetness: 0, acidity: 0, bitterness: 0, body: 0 }, accuracy: 0, rating: 0 }
+      : { water: d.water === '' ? null : Number(d.water), time: d.time || 0, sensory: { ...d.sensory }, accuracy: d.accuracy || 0, rating: d.rating || 0 };
+    // a brew that is still being reviewed moves forward when this form already fills in the next step
+    const stage = quick ? 'logged' : !isPending(brew) ? 'done' : later.rating > 0 ? 'done' : later.water > 0 ? 'timed' : 'logged';
     const saved = await saveBrew({
       ...(brew || {}), beanId: d.beanId, methodId: d.methodId, grinderId: d.grinderId || null,
-      grind: d.grind, dose: Number(d.dose), water: d.water === '' ? null : Number(d.water), temp: d.temp === '' ? null : Number(d.temp), time: d.time || 0,
-      sensory: { ...d.sensory }, accuracy: d.accuracy || 0, rating: d.rating || 0, date: d.date,
+      grind: d.grind, dose: Number(d.dose), temp: d.temp === '' ? null : Number(d.temp), date: d.date, ...later, stage,
     });
     sheet.close();
     const left = remaining(bean);
     if (left <= 0) {
       toast('Brew saved. That bag is empty.', { action: { label: 'Mark finished', fn: async () => { await saveBean({ ...bean, finished: true, finishedAt: today() }); toast('Bag marked as finished'); } }, ms: 7000 });
-    } else toast(editing ? 'Brew updated' : `Brew saved · ${fmtG(left)} left in the bag`);
+    } else toast(editing ? 'Brew updated' : `Brew saved · ${fmtG(left)} left in the bag. Tap “Review the brew” when you are done.`, { ms: editing ? undefined : 6000 });
+  }
+}
+
+/* =========================================================
+   Review: step 2 (water + time), then step 3 (taste + rating)
+   ========================================================= */
+export function openBrewReview(id) {
+  if (!canEdit()) { toast('Sign in to edit.'); return; }
+  const b = S.brews.find(x => x.id === id);
+  if (!b) return;
+  if (b.stage === 'logged') openWaterTimeSheet(b);
+  else if (b.stage === 'timed') openTasteSheet(b);
+  else openBrewDetail(id);
+}
+
+function reviewHead(b, step, what) {
+  const bean = beanById(b.beanId), m = methodById(b.methodId);
+  const bits = [m?.name, b.dose ? fmtG(b.dose) : null, b.temp ? `${b.temp}°C` : null, b.water ? `→ ${fmtG(b.water)}` : null].filter(Boolean).join(' · ');
+  return h('div.review-head', h('span.review-step', `Step ${step} of 3 · ${what}`), h('h3.review-bean', bean?.name || 'Deleted beans'), h('p.muted.small', bits));
+}
+
+function openWaterTimeSheet(b0) {
+  const d = { water: '', time: 0 };
+  const waterIn = numericInput(h('input', { type: 'text', value: '', placeholder: 'Water / yield', 'aria-label': 'Water / yield', inputmode: 'decimal' }), { decimal: true });
+  const waterW = h('div.unit-input', waterIn, h('span.unit', 'g'));
+  const ratio = h('div.ratio-big'), ratioSub = h('div.ratio-sub');
+  const last = S.brews.find(x => x.id !== b0.id && x.beanId === b0.beanId && x.water > 0);
+  const lastHint = h('div.field-hint', last ? `Last time with this coffee: ${fmtG(last.water)}${last.time ? ' in ' + fmtTime(last.time) : ''}.` : '');
+  const calcRatio = () => {
+    ratio.textContent = ratioText(b0.dose, d.water);
+    ratioSub.textContent = b0.dose > 0 && d.water > 0 ? `${round1(b0.dose / d.water * 1000)} g of coffee per litre` : 'Enter the water to see the ratio.';
+  };
+  waterIn.addEventListener('input', () => { d.water = waterIn.value === '' ? '' : parseFloat(waterIn.value); waterIn.classList.remove('invalid'); calcRatio(); });
+  const timeBtn = selectButton({ placeholder: '00:00:00', onclick: async () => { const r = await pickTime({ value: d.time || 0 }); if (r !== null) { d.time = r; paintTime(); } } });
+  const paintTime = () => { const t = d.time || 0; timeBtn.set(`${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`); };
+  paintTime(); calcRatio();
+  const err = h('div.form-err', { role: 'alert' });
+  const form = h('form.form', { onsubmit: (e) => { e.preventDefault(); save(); }, novalidate: true },
+    reviewHead(b0, 2, 'Water and time'),
+    section('', group('Water / yield', waterW), lastHint, group('Extraction time', timeBtn), h('div.ratio', h('span.ratio-k', 'Coffee to brew ratio'), ratio, ratioSub)));
+  const sheet = openSheet({
+    title: 'Review the brew', size: 'lg', className: 'form-sheet brew-form', body: form,
+    footer: [err, h('button.btn', { type: 'button', onclick: () => sheet.close() }, 'Cancel'), h('button.btn.primary', { type: 'button', onclick: () => save() }, 'Save')],
+  });
+  setTimeout(() => waterIn.focus({ preventScroll: true }), 260);
+  async function save() {
+    if (!(d.water > 0)) { err.textContent = 'Fill in: water / yield.'; waterIn.classList.add('invalid'); return; }
+    const cur = S.brews.find(x => x.id === b0.id);
+    if (!cur) { sheet.close(); return; }
+    try { await saveBrew({ ...cur, water: Number(d.water), time: d.time || 0, stage: 'timed' }); }
+    catch (e) { console.error(e); err.textContent = 'Could not save. Check the numbers and try again.'; return; }
+    sheet.close();
+    toast('Saved. Tap “Review the brew” again once you have tasted it.', { ms: 5000 });
+  }
+}
+
+function openTasteSheet(b0) {
+  const d = { sensory: hasSensory(b0) ? { ...defaultSensory(), ...b0.sensory } : defaultSensory(), accuracy: b0.accuracy || 0, rating: b0.rating || 0 };
+  const radar = Radar({ values: d.sensory, size: 300 });
+  const sliders = SENSORY.map(m => {
+    const out = h('output', String(d.sensory[m.k]));
+    const input = h('input', { type: 'range', min: 0, max: 10, step: 1, value: d.sensory[m.k], 'aria-label': m.label });
+    const paint = () => input.style.setProperty('--p', (input.value / 10 * 100) + '%');
+    input.addEventListener('input', () => { d.sensory[m.k] = Number(input.value); out.textContent = input.value; paint(); radar.update(d.sensory); });
+    paint();
+    return h('div.slide-row', h('label', m.label), input, out);
+  });
+  const accuracy = StarSlider({ value: d.accuracy, label: 'Flavor profile accuracy', onChange: (v) => { d.accuracy = v; } });
+  const rating = StarSlider({ value: d.rating, label: 'Overall rating', onChange: (v) => { d.rating = v; err.textContent = ''; } });
+  const err = h('div.form-err', { role: 'alert' });
+  const form = h('form.form', { onsubmit: (e) => { e.preventDefault(); save(); }, novalidate: true },
+    reviewHead(b0, 3, 'Taste and rating'),
+    section('Sensory profile', h('div.sensory', h('div.sliders', sliders), h('div.radar-box', radar.el))),
+    section('Ratings',
+      group('Flavor profile accuracy', accuracy.el, 'How closely the cup matched the flavor notes on the bag.'),
+      group('Overall rating', rating.el)));
+  const sheet = openSheet({
+    title: 'Review the brew', size: 'lg', className: 'form-sheet brew-form', body: form,
+    footer: [err, h('button.btn', { type: 'button', onclick: () => sheet.close() }, 'Cancel'), h('button.btn.primary', { type: 'button', onclick: () => save() }, 'Save review')],
+  });
+  async function save() {
+    if (!(d.rating > 0)) { err.textContent = 'Give the brew an overall rating.'; return; }
+    const cur = S.brews.find(x => x.id === b0.id);
+    if (!cur) { sheet.close(); return; }
+    try { await saveBrew({ ...cur, sensory: { ...d.sensory }, accuracy: d.accuracy || 0, rating: d.rating, stage: 'done' }); }
+    catch (e) { console.error(e); err.textContent = 'Could not save. Try again.'; return; }
+    sheet.close();
+    toast('Review saved');
   }
 }

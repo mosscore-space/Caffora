@@ -249,6 +249,12 @@ button.chip { cursor: pointer; }
 .fresh-cap { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--txt2); }
 .fresh-bb { margin-top: 4px; font-size: 13px; color: var(--txt2); } .fresh-bb b { color: var(--txt); } .fresh-bb.over, .fresh-bb.over b { color: var(--danger); }
 .dates-box { display: grid; gap: 14px; }
+.brew-review { margin-top: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 48px; padding: 8px 16px; border-radius: 14px; background: var(--acc); color: var(--on-acc); font-weight: 700; font-size: 15px; text-align: left; line-height: 1.2; }
+.brew-review small { font-weight: 600; font-size: 12px; opacity: .85; }
+.form-note { margin: 0 0 4px; font-size: 13px; color: var(--txt2); line-height: 1.45; }
+.review-head { display: grid; gap: 2px; margin-bottom: 6px; }
+.review-step { justify-self: start; font-size: 12px; font-weight: 700; color: var(--gold); border: 1px solid currentColor; border-radius: 99px; padding: 2px 10px; background: color-mix(in srgb, currentColor 12%, transparent); }
+.review-bean { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 6px 0 0; }
 .date-note { margin: 0; font-size: 13px; color: var(--txt2); line-height: 1.4; }
 .fresh-day { font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; flex: none; }
 .fresh-cap b { color: var(--txt); }
@@ -704,10 +710,11 @@ body.peek .map-view { margin-top: calc(var(--safe-t) + 30px); height: calc(100dv
 .brew-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .brew-title h3 { min-width: 0; }
 .tier { flex: none; font-size: 12px; font-weight: 700; padding: 2px 9px 2px 8px; border-radius: 99px; border: 1px solid currentColor; background: color-mix(in srgb, currentColor 12%, transparent); }
+.tier.t-pend { color: var(--gold); }
 .tier.t-hi { color: var(--leaf); } .tier.t-good { color: var(--gold); } .tier.t-ok { color: var(--acc); } .tier.t-low { color: var(--danger); }
 article.brew, article.bean, article.grinder { position: relative; overflow: hidden; }
 article.brew::before, article.bean::before, article.grinder::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--stripe, transparent); }
-article.brew.t-hi { --stripe: var(--leaf); } article.brew.t-good { --stripe: var(--gold); } article.brew.t-ok { --stripe: var(--acc); } article.brew.t-low { --stripe: var(--danger); }
+article.brew.t-pend { --stripe: var(--gold); } article.brew.t-hi { --stripe: var(--leaf); } article.brew.t-good { --stripe: var(--gold); } article.brew.t-ok { --stripe: var(--acc); } article.brew.t-low { --stripe: var(--danger); }
 article.bean.st-resting { --stripe: var(--bean); } article.bean.st-peak { --stripe: var(--gold); } article.bean.st-past { --stripe: var(--leaf); } article.bean.finished { --stripe: var(--overlay0); }
 article.grinder { --stripe: var(--acc); }
 .fab { background: linear-gradient(150deg, color-mix(in srgb, var(--acc) 82%, #fff), var(--acc)); }

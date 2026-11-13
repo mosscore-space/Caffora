@@ -78,6 +78,16 @@ Updating never touches your data. Beans, brews and grinders live in the browser'
 repo), while the service worker only replaces the app's own files. New fields are optional, so records saved by an
 older version open and edit normally.
 
+## Logging a brew in three steps
+
+So you don't have to keep your phone awake while you brew:
+
+1. **New brew** only asks what you know before brewing: bean, method, grinder and grind size, coffee dose, temperature and date. Save, and put the phone down.
+2. The brew shows **Needs review** with a **Review the brew** button. The first tap asks only for the water (yield) and the extraction time.
+3. Tap **Review the brew** again after tasting, to add the sensory profile and your rating. Now it looks like any other finished brew.
+
+Tap anywhere else on the card to open the brew, edit any detail, or delete it. Brews saved before this update count as finished, and the coffee's dose is deducted from the bag as soon as step 1 is saved.
+
 ## Roast date or ordered date
 
 Each bean has a **Date type**:

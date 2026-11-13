@@ -66,6 +66,7 @@ export function normalizeBrew(r) {
     dose, water: num(r.water, 0, 20000, { blank: null }), temp: num(r.temp, 0, 100, { blank: null }), time: num(r.time, 0, 86400, { int: true, blank: 0 }),
     sensory: { aroma: s('aroma'), sweetness: s('sweetness'), acidity: s('acidity'), bitterness: s('bitterness'), body: s('body') },
     accuracy: num(r.accuracy, 0, 5, { blank: 0 }), rating: num(r.rating, 0, 5, { blank: 0 }), date: d,
+    stage: r.stage === 'logged' || r.stage === 'timed' ? r.stage : 'done',      // 3 steps: logged -> timed (water, time) -> done (taste, rating); older brews are 'done'
     created: ts(r.created), updated: ts(r.updated),
   };
 }
