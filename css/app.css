@@ -247,6 +247,9 @@ button.chip { cursor: pointer; }
 .fresh-tick { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
 .fresh-tick.first { transform: translateX(-13px); }
 .fresh-cap { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--txt2); }
+.fresh-bb { margin-top: 4px; font-size: 13px; color: var(--txt2); } .fresh-bb b { color: var(--txt); } .fresh-bb.over, .fresh-bb.over b { color: var(--danger); }
+.dates-box { display: grid; gap: 14px; }
+.date-note { margin: 0; font-size: 13px; color: var(--txt2); line-height: 1.4; }
 .fresh-day { font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; flex: none; }
 .fresh-cap b { color: var(--txt); }
 .state-peak .fresh-cap b { color: var(--gold); }

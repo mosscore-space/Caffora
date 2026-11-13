@@ -178,5 +178,6 @@ export function freshness(bean, now = today()) {
   const domain = Math.ceil(to * 1.5);
   let state = 'resting';
   if (days >= from && days <= to) state = 'peak'; else if (days > to) state = 'past';
-  return { days, from, to, start, end, domain, state, pos: Math.min(1, Math.max(0, days / domain)) };
+  const bb = bean.bestBefore || null;
+  return { days, from, to, start, end, domain, state, pos: Math.min(1, Math.max(0, days / domain)), bb, bbLeft: bb ? daysBetween(now, bb) : null };
 }

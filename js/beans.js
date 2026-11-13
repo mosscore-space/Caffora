@@ -43,6 +43,8 @@ export function renderBeans(root) {
   root.append(h('button.fab', { type: 'button', 'aria-label': 'Add beans', onclick: add }, icon('plus', 26)));
 }
 
+const dateWord = (b) => (b.dateType === 'ordered' ? 'Ordered' : 'Roasted');
+
 function beanCard(b) {
   const f = b.finished ? null : freshness(b);
   const origin = [b.country, b.region].filter(Boolean).join(' · ');
@@ -60,7 +62,7 @@ function beanCard(b) {
     f ? freshnessSlide(b) : null,
     stockBar(b),
     h('div.bean-foot',
-      h('span.muted', b.finished ? `Roasted ${fmtDate(b.roastDate)}` : `Roasted ${fmtDate(b.roastDate, false)} · best ${fmtDate(f.start, false)} – ${fmtDate(f.end, false)}`),
+      h('span.muted', b.finished ? `${dateWord(b)} ${fmtDate(b.roastDate)}` : `${dateWord(b)} ${fmtDate(b.roastDate, false)} · best ${fmtDate(f.start, false)} – ${fmtDate(f.end, false)}`),
       !canEdit() ? null : b.finished
         ? h('button.link', { type: 'button', onclick: (e) => { e.stopPropagation(); reopen(b); } }, 'Reopen bag')
         : h('button.link', { type: 'button', onclick: (e) => { e.stopPropagation(); markFinished(b); } }, 'Mark finished')));
@@ -95,7 +97,8 @@ export function openBeanDetail(id) {
     const rows = [
       ['Country', b.country], ['Region / area', b.region], ['Variety', b.variety], ['Processing', b.process],
       ['Roast level', ROAST_LABEL[b.roast]], ['Altitude', altitudeText(b)],
-      ['Roast date', fmtDateLong(b.roastDate)], ['Best consumed', `${fmtDate(freshness(b).start)} – ${fmtDate(freshness(b).end)}`],
+      [b.dateType === 'ordered' ? 'Ordered date' : 'Roast date', fmtDateLong(b.roastDate)], ['Best consumed', `${fmtDate(freshness(b).start)} – ${fmtDate(freshness(b).end)}`],
+      ['Best before', b.bestBefore ? fmtDateLong(b.bestBefore) : ''],
       ['Harvest date', b.harvestDate ? fmtDateLong(b.harvestDate) : ''],
       ['Farm', b.farm], ['Wash station', b.washStation], ['Producer', b.producer],
     ].filter(r => r[1]);
@@ -222,9 +225,9 @@ const UNIT_G = { g: 1, oz: 28.349523125, lb: 453.59237 };
 export function openBeanForm(existing = null) {
   if (!canEdit()) { toast('Sign in to edit.'); return; }
   const editing = !!existing;
-  const d = existing ? { ...existing, notes: [...(existing.notes || [])] } : {
+  const d = existing ? { dateType: 'roast', bestBefore: '', ...existing, notes: [...(existing.notes || [])] } : {
     name: '', country: '', countryCode: '', region: '', variety: '', roast: '', process: '', altFrom: '', altTo: '', altUnit: 'm',
-    notes: [], roastDate: '', harvestDate: '', farm: '', washStation: '', producer: '', grams: 0, image: null,
+    notes: [], dateType: 'roast', roastDate: '', bestBefore: '', harvestDate: '', farm: '', washStation: '', producer: '', grams: 0, image: null,
   };
   let gAmount = editing && d.grams ? String(round1(d.grams)) : '', gUnit = 'g';
 
@@ -317,9 +320,9 @@ export function openBeanForm(existing = null) {
   const flavor = FlavorPicker(d.notes);
 
   /* --- dates --- */
-  const dateBtn = (key, title, optional) => {
+  const dateBtn = (key, title, optional, yearsAhead = 1) => {
     const btn = selectButton({ placeholder: optional ? 'Select date (optional)' : 'Select date', onclick: async () => {
-      const r = await pickDate({ title, value: d[key] || today(), optional });
+      const r = await pickDate({ title, value: d[key] || today(), optional, yearsAhead });
       if (r === null) return;
       d[key] = r; paint(); btn.markInvalid(false);
     } });
@@ -327,7 +330,22 @@ export function openBeanForm(existing = null) {
     paint(); return btn;
   };
   const roastBtn = dateBtn('roastDate', 'Roast date', false);
+  const orderedBtn = dateBtn('roastDate', 'Ordered date', false);       // same stored date: it is where the freshness timeline starts
+  const bestBeforeBtn = dateBtn('bestBefore', 'Best before date', true, 5);
   const harvestBtn = dateBtn('harvestDate', 'Harvest date', true);
+  const datesBox = h('div.dates-box');
+  const dateType = segmented({ options: [{ v: 'roast', label: 'Roast date' }, { v: 'ordered', label: 'Ordered date' }], value: d.dateType, onChange: (v) => { d.dateType = v; paintDates(); } });
+  function paintDates() {
+    const ordered = d.dateType === 'ordered';
+    roastBtn.markInvalid(false); orderedBtn.markInvalid(false);
+    datesBox.replaceChildren(...(ordered
+      ? [h('p.date-note', 'No roast date on the bag? Use the day you ordered it. The freshness timeline counts from that day, using the roast level.'),
+         h('div.two.stackable', group('Ordered date', orderedBtn), group('Best before', bestBeforeBtn)),
+         group('Harvest date', harvestBtn)]
+      : [h('div.two.stackable', group('Roast date', roastBtn), group('Harvest date', harvestBtn)),
+         group('Best before', bestBeforeBtn)]));
+  }
+  paintDates();
 
   /* --- source --- */
   const txt = (key, ph) => { const i = h('input', { type: 'text', value: d[key] || '', placeholder: ph, autocomplete: 'off', maxlength: 80 }); i.addEventListener('input', () => { d[key] = i.value; }); return i; };
@@ -357,8 +375,7 @@ export function openBeanForm(existing = null) {
       group('Processing', processWrap),
       group('Altitude', h('div.alt-row', altFrom, altTo, altUnit.el))),
     section('Flavor notes', flavor.el),
-    section('Dates',
-      h('div.two', group('Roast date', roastBtn), group('Harvest date', harvestBtn))),
+    section('Dates', group('Date type', dateType.el), datesBox),
     section('Source', field('Farm', txt('farm', 'Farm or estate')), field('Wash station', txt('washStation', 'Wash station or mill')), field('Producer', txt('producer', 'Producer or importer'))),
     section('Grams', group('Amount in the bag', h('div.grams-row', amountIn, unitSeg.el), null), conv),
   );
@@ -377,7 +394,7 @@ export function openBeanForm(existing = null) {
     if (!d.name.trim()) { missing.push('name'); nameIn.classList.add('invalid'); }
     if (!d.countryCode) { missing.push('country'); countryBtn.markInvalid(true); }
     if (!d.roast) { missing.push('roast level'); roastSel.classList.add('invalid'); }
-    if (!d.roastDate) { missing.push('roast date'); roastBtn.markInvalid(true); }
+    if (!d.roastDate) { missing.push(d.dateType === 'ordered' ? 'ordered date' : 'roast date'); (d.dateType === 'ordered' ? orderedBtn : roastBtn).markInvalid(true); }
     if (!(d.grams > 0)) { missing.push('grams'); amountIn.classList.add('invalid'); }
     if (missing.length) {
       err.textContent = `Fill in: ${missing.join(', ')}.`;
@@ -390,7 +407,7 @@ export function openBeanForm(existing = null) {
       id: existing?.id, name: d.name.trim(), country: d.country, countryCode: d.countryCode, region: (d.region || '').trim(),
       variety: (d.variety || '').trim(), roast: d.roast, process: (d.process || '').trim(),
       altFrom: d.altFrom || '', altTo: d.altTo || '', altUnit: d.altUnit || 'm',
-      notes: d.notes, roastDate: d.roastDate, harvestDate: d.harvestDate || '', farm: (d.farm || '').trim(), washStation: (d.washStation || '').trim(), producer: (d.producer || '').trim(),
+      notes: d.notes, dateType: d.dateType === 'ordered' ? 'ordered' : 'roast', roastDate: d.roastDate, bestBefore: d.bestBefore || '', harvestDate: d.harvestDate || '', farm: (d.farm || '').trim(), washStation: (d.washStation || '').trim(), producer: (d.producer || '').trim(),
       grams: d.grams, image: d.image || null, finished: existing?.finished || false,
     };
     if (bean.altFrom && bean.altTo && bean.altFrom > bean.altTo) [bean.altFrom, bean.altTo] = [bean.altTo, bean.altFrom];

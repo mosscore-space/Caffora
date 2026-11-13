@@ -74,6 +74,20 @@ Anyone who opens the hosted address on their own device only sees their own, emp
 The service worker serves cached files and refreshes them in the background, so a new version appears on the
 second launch. To force a clean update, change `VERSION` at the top of `sw.js`.
 
+Updating never touches your data. Beans, brews and grinders live in the browser's database (and in your GitHub data
+repo), while the service worker only replaces the app's own files. New fields are optional, so records saved by an
+older version open and edit normally.
+
+## Roast date or ordered date
+
+Each bean has a **Date type**:
+
+- **Roast date** is the usual choice.
+- **Ordered date** is for bags with no roast date, only a best-before date. The freshness timeline counts from the day
+  you ordered, using the roast level (dark 4-12 days, medium 9-21, light and ultra-light 14-28).
+
+The optional **Best before** date is shown under the timeline and turns red once it has passed.
+
 ## Phone layout and themes
 
 Below 900 px wide the app switches to a phone layout: a centred title bar with search and a menu, accent-striped cards,

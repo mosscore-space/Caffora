@@ -294,11 +294,11 @@ export function Wheel({ items, index = 0, onChange, itemH = 42, rows = 5, label 
 /* =========================================================
    Date picker: day / month / year wheels
    ========================================================= */
-export function pickDate({ title = 'Select date', value, optional = false } = {}) {
+export function pickDate({ title = 'Select date', value, optional = false, yearsAhead = 1 } = {}) {
   return new Promise(resolve => {
     const base = value ? parseYMD(value) : new Date();
     const nowY = new Date().getFullYear();
-    const minY = Math.min(nowY - 15, base.getFullYear()), maxY = Math.max(nowY + 1, base.getFullYear());
+    const minY = Math.min(nowY - 15, base.getFullYear()), maxY = Math.max(nowY + yearsAhead, base.getFullYear());
     const years = []; for (let y = minY; y <= maxY; y++) years.push({ value: y, label: String(y) });
     let y = base.getFullYear(), m = base.getMonth() + 1, d = base.getDate();
     const dayItems = (n) => Array.from({ length: n }, (_, i) => ({ value: i + 1, label: String(i + 1) }));

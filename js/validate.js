@@ -44,6 +44,7 @@ export function normalizeBean(r) {
     region: cleanText(r.region, 80), variety: cleanText(r.variety, 80), process: cleanText(r.process, 80), roast: r.roast,
     altFrom: num(r.altFrom, 0, 9000, { int: true, blank: '' }), altTo: num(r.altTo, 0, 9000, { int: true, blank: '' }), altUnit: pick(r.altUnit, ['m', 'ft'], 'm'),
     notes, roastDate, harvestDate: date(r.harvestDate),
+    dateType: r.dateType === 'ordered' ? 'ordered' : 'roast', bestBefore: date(r.bestBefore),      // older records have neither: they count as roast-dated
     farm: cleanText(r.farm, 80), washStation: cleanText(r.washStation, 80), producer: cleanText(r.producer, 80),
     grams, finished: bool(r.finished), finishedAt: date(r.finishedAt) || null,
     created: ts(r.created), updated: ts(r.updated),

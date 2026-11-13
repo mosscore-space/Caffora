@@ -43,6 +43,12 @@ export function chip(text, cls = '') { return h('span.chip' + (cls ? '.' + cls :
 
 /* ---- freshness slide ---- */
 const pluralDays = (n) => (n === 1 ? '1 day' : `${n} days`);
+/** "in 5 days", "in 4 months", "2 days ago" for a count of days (negative = in the past). */
+function whenText(n) {
+  const a = Math.abs(n);
+  const span = a < 1 ? 'today' : a < 60 ? pluralDays(a) : a < 730 ? `${Math.round(a / 30.4)} months` : `${Math.round(a / 365)} years`;
+  return a < 1 ? 'today' : n > 0 ? `in ${span}` : `${span} ago`;
+}
 export function freshnessSlide(bean) {
   const f = freshness(bean);
   const pct = (d) => (d / f.domain) * 100;
@@ -58,17 +64,22 @@ export function freshnessSlide(bean) {
     caption = [h('b', 'Past its best'), ` · ${pluralDays(over)} ago (${fmtDate(f.end, false)})`];
   }
   const label = (d, text, cls = '') => h('span.fresh-tick' + (cls ? '.' + cls : ''), { style: { left: pct(d) + '%' } }, text);
-  return h('div.fresh.state-' + f.state, { role: 'img', 'aria-label': `Freshness: day ${f.days} after roast, ${f.state}` },
+  const ordered = bean.dateType === 'ordered';
+  const bbLine = f.bb ? h('div.fresh-bb' + (f.bbLeft < 0 ? '.over' : ''), f.bbLeft < 0
+    ? [h('b', 'Past its best-before date'), ` · ${whenText(f.bbLeft)} (${fmtDate(f.bb)})`]
+    : [h('b', 'Best before'), ` ${fmtDate(f.bb)} · ${whenText(f.bbLeft)}`]) : null;
+  return h('div.fresh.state-' + f.state, { role: 'img', 'aria-label': `Freshness: day ${f.days} after ${ordered ? 'order' : 'roast'}, ${f.state}${f.bb ? (f.bbLeft < 0 ? ', past best-before date' : ', best before ' + f.bb) : ''}` },
     h('div.fresh-track',
       h('i.z.pre', { style: { width: pct(f.from) + '%' } }),
       h('i.z.peak', { style: { left: pct(f.from) + '%', width: pct(f.to - f.from) + '%' } }),
       h('i.z.post', { style: { left: pct(f.to) + '%', right: 0 } }),
       h('span.fresh-bean', { style: { left: (f.pos * 100) + '%' } }, beanSVG(26))),
     h('div.fresh-scale',
-      label(0, 'Roast', 'first'),
+      label(0, ordered ? 'Ordered' : 'Roast', 'first'),
       label(f.from, fmtDate(f.start, false)),
       label(f.to, fmtDate(f.end, false))),
-    h('div.fresh-cap', h('span.fresh-day', `Day ${f.days}`), h('span', caption)));
+    h('div.fresh-cap', h('span.fresh-day', `Day ${f.days}`), h('span', caption)),
+    bbLine);
 }
 
 /* ---- remaining / consumed bars ---- */
