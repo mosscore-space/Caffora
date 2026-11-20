@@ -39,6 +39,7 @@ function route() {
   current = tab.id;
   document.querySelectorAll('#nav button').forEach(b => { if (b.dataset.tab === tab.id) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   view().classList.toggle('full', tab.id === 'map');
+  view().classList.toggle('wide', tab.id === 'stats');
   tab.render(view());
 }
 function rerender() {

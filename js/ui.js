@@ -395,11 +395,11 @@ export function StarSlider({ value = 0, onChange, max = 5, label = 'Rating' } = 
 }
 
 /* =========================================================
-   Radar chart (5 axes)
+   Radar chart (one axis per SENSORY entry)
    ========================================================= */
 export const SENSORY = [
   { k: 'aroma', label: 'Aroma' }, { k: 'sweetness', label: 'Sweetness' }, { k: 'acidity', label: 'Acidity' },
-  { k: 'bitterness', label: 'Bitterness' }, { k: 'body', label: 'Body' },
+  { k: 'sourness', label: 'Sourness' }, { k: 'bitterness', label: 'Bitterness' }, { k: 'body', label: 'Body' },
 ];
 export function Radar({ values = {}, size = 260, max = 10, showValues = true, compact = false } = {}) {
   const c = size / 2, R = compact ? size * 0.4 : size * 0.33, n = SENSORY.length;

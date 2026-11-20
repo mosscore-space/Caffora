@@ -104,10 +104,11 @@ export function openBrewDetail(id) {
 /* =========================================================
    Form
    ========================================================= */
-const defaultSensory = () => ({ aroma: 5, sweetness: 5, acidity: 5, bitterness: 5, body: 5 });
+const defaultSensory = () => ({ aroma: 5, sweetness: 5, acidity: 5, sourness: 5, bitterness: 5, body: 5 });
+const sensoryFor = (b) => (hasSensory(b) ? { ...defaultSensory(), sourness: 0, ...b.sensory } : defaultSensory());   // a brew saved before Sourness existed starts at 0, not an invented 5
 const hasSensory = (b) => Object.values(b.sensory || {}).some(v => v > 0);
 
-export function openBrewForm({ beanId, brew } = {}) {
+export function openBrewForm({ beanId, brew, from } = {}) {
   if (!canEdit()) { toast('Sign in to edit.'); return; }
   const editing = !!brew;
   const quick = !editing;            // a new brew only asks for what you know before brewing; water, time, taste and rating come later
@@ -116,7 +117,7 @@ export function openBrewForm({ beanId, brew } = {}) {
     toast('Add an active bean first.', { action: { label: 'Go to Beans', fn: () => nav.go('beans') } });
     return;
   }
-  const d = editing ? { ...brew, sensory: hasSensory(brew) ? { ...defaultSensory(), ...brew.sensory } : defaultSensory() } : {
+  const d = editing ? { ...brew, sensory: sensoryFor(brew) } : {
     beanId: null, methodId: 'v60', grinderId: S.brews[0]?.grinderId && grinderById(S.brews[0].grinderId) ? S.brews[0].grinderId : (S.grinders[0]?.id || null),
     grind: null, dose: '', water: '', temp: '', time: 0, sensory: defaultSensory(), accuracy: 0, rating: 0, date: today(),
   };
@@ -211,7 +212,7 @@ export function openBrewForm({ beanId, brew } = {}) {
     const bean = beanById(id);
     beanBtn.set(bean ? bean.name : '', bean ? beanThumb(bean, 28) : null); beanBtn.markInvalid(false);
     if (!editing) {
-      const prev = lastBrewOf(id);
+      const prev = from && from.beanId === id ? from : lastBrewOf(id);
       if (prev) {
         Object.assign(d, {
           methodId: prev.methodId || d.methodId, grinderId: prev.grinderId && grinderById(prev.grinderId) ? prev.grinderId : d.grinderId,
@@ -229,7 +230,7 @@ export function openBrewForm({ beanId, brew } = {}) {
   function paintBanner() {
     banner.hidden = !prefilledFrom;
     if (!prefilledFrom) return;
-    fill(banner, h('span', `Started from your last brew of this coffee (${fmtDate(prefilledFrom.date)}). Change anything you like.`),
+    fill(banner, h('span', `Started from your ${prefilledFrom === from ? 'best' : 'last'} brew of this coffee (${fmtDate(prefilledFrom.date)}). Change anything you like.`),
       h('button.link', { type: 'button', onclick: () => {
         prefilledFrom = null;
         Object.assign(d, { grind: null, dose: '', water: '', temp: '', time: 0, sensory: defaultSensory(), accuracy: 0, rating: 0 });
@@ -284,7 +285,7 @@ export function openBrewForm({ beanId, brew } = {}) {
     if (!bean) { missing.push('bean'); beanBtn.markInvalid(true); }
     if (!(d.dose > 0)) { missing.push('coffee dose'); doseIn.classList.add('invalid'); }
     if (missing.length) { err.textContent = `Fill in: ${missing.join(', ')}.`; form.querySelector('.invalid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
-    const later = quick ? { water: null, time: 0, sensory: { aroma: 0, sweetness: 0, acidity: 0, bitterness: 0, body: 0 }, accuracy: 0, rating: 0 }
+    const later = quick ? { water: null, time: 0, sensory: { aroma: 0, sweetness: 0, acidity: 0, sourness: 0, bitterness: 0, body: 0 }, accuracy: 0, rating: 0 }
       : { water: d.water === '' ? null : Number(d.water), time: d.time || 0, sensory: { ...d.sensory }, accuracy: d.accuracy || 0, rating: d.rating || 0 };
     // a brew that is still being reviewed moves forward when this form already fills in the next step
     const stage = quick ? 'logged' : !isPending(brew) ? 'done' : later.rating > 0 ? 'done' : later.water > 0 ? 'timed' : 'logged';
@@ -354,7 +355,7 @@ function openWaterTimeSheet(b0) {
 }
 
 function openTasteSheet(b0) {
-  const d = { sensory: hasSensory(b0) ? { ...defaultSensory(), ...b0.sensory } : defaultSensory(), accuracy: b0.accuracy || 0, rating: b0.rating || 0 };
+  const d = { sensory: sensoryFor(b0), accuracy: b0.accuracy || 0, rating: b0.rating || 0 };
   const radar = Radar({ values: d.sensory, size: 300 });
   const sliders = SENSORY.map(m => {
     const out = h('output', String(d.sensory[m.k]));

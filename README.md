@@ -88,6 +88,17 @@ So you don't have to keep your phone awake while you brew:
 
 Tap anywhere else on the card to open the brew, edit any detail, or delete it. Brews saved before this update count as finished, and the coffee's dose is deducted from the bag as soon as step 1 is saved.
 
+## Sensory profile and Stats
+
+The sensory profile has six axes: aroma, sweetness, acidity, **sourness**, bitterness and body. Brews saved before sourness existed show it as 0 until you edit them; opening one and saving without touching the slider keeps it at 0.
+
+The Stats tab has two views:
+
+- **Overview**: coffee consumed (grams of beans and ml of drink), brews per week, month and year, a time-of-day heat map, and a caffeine estimate for the last 14 days.
+- **Ratings & recipes**: average rating by method, bean, grinder or origin, your best recipe for each bean (with a "Brew this recipe" button), the top five brews side by side, and your go-to grind setting for each method.
+
+Notes on the numbers: the heat map uses the time each brew was logged, and leaves out brews logged on a different day than they were made. Drink is the water or yield you entered. Caffeine is a rough estimate of about 10 mg per gram of coffee, shown against the commonly cited 400 mg a day, and is not medical advice.
+
 ## Roast date or ordered date
 
 Each bean has a **Date type**:
