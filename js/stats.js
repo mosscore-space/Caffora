@@ -295,7 +295,7 @@ export function renderStats(root) {
     return;
   }
   const tabs = segmented({ options: [{ v: 'overview', label: 'Overview' }, { v: 'ratings', label: 'Ratings & recipes' }], value: view.tab, onChange: (v) => { view.tab = v; renderStats(root); window.scrollTo(0, 0); }, cls: 'stat-tabs' });
-  root.append(tabs.el);
+  root.append(h('div.stat-tabs-row', tabs.el));
   if (view.tab === 'overview') {
     root.append(
       h('section.total', h('div.total-n', String(S.brews.length)), h('div.total-k', S.brews.length === 1 ? 'brew in total' : 'brews in total')),
@@ -310,7 +310,7 @@ export function renderStats(root) {
     root.append(h('div.stat-grid',
       avgCard(root),
       bestRecipeCard(root),
-      h('div.span2', bestBrewsCard()),
-      h('div.span2', settingsCard())));
+      h('div.span-mid', settingsCard()),
+      h('div.span2', bestBrewsCard())));
   }
 }

@@ -1,5 +1,5 @@
 /* Caffora service worker: precache the app shell, then serve cache-first and refresh in the background. */
-const VERSION = 'caffora-v9';
+const VERSION = 'caffora-v10';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/util.js', 'js/db.js', 'js/store.js', 'js/ui.js', 'js/parts.js', 'js/geo.js', 'js/nav.js',
